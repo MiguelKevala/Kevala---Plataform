@@ -25,9 +25,10 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  userRoles UserRole[]
-  sessions  Session[]
-  auditLogs AuditLog[]
+  userRoles                UserRole[]
+  sessions                 Session[]
+  auditLogs                AuditLog[]
+  vendorOrderStatusChanges VendorOrderStatusHistory[]
 
   @@map("users")
 }
@@ -115,4 +116,57 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Vendor: seguimiento de órdenes únicamente. Sin líneas de producto, sin
+// Amazon/API, sin inventario. Ver KevalaV1.pdf §10-24 y las decisiones
+// registradas en conversación para el alcance exacto de V1.
+// ---------------------------------------------------------------------------
+
+enum VendorOrderStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  DELIVERED
+
+  @@map("vendor_order_status")
+}
+
+model VendorOrder {
+  id                   String            @id @default(cuid())
+  orderNumber          String            @unique @map("order_number")
+  amazonOrderId        String?           @unique @map("amazon_order_id")
+  status               VendorOrderStatus @default(PENDING)
+  orderDate            DateTime          @map("order_date")
+  confirmationDeadline DateTime?         @map("confirmation_deadline")
+  deliveryDeadline     DateTime?         @map("delivery_deadline")
+  confirmedAt          DateTime?         @map("confirmed_at")
+  rejectedAt           DateTime?         @map("rejected_at")
+  deliveredAt          DateTime?         @map("delivered_at")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  statusHistory VendorOrderStatusHistory[]
+
+  @@index([status])
+  @@index([orderDate])
+  @@map("vendor_orders")
+}
+
+model VendorOrderStatusHistory {
+  id             String             @id @default(cuid())
+  vendorOrderId  String             @map("vendor_order_id")
+  previousStatus VendorOrderStatus? @map("previous_status")
+  newStatus      VendorOrderStatus  @map("new_status")
+  changedBy      String?            @map("changed_by")
+  reason         String?
+  comments       String?
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  vendorOrder   VendorOrder @relation(fields: [vendorOrderId], references: [id], onDelete: Cascade)
+  changedByUser User?       @relation(fields: [changedBy], references: [id], onDelete: SetNull)
+
+  @@index([vendorOrderId])
+  @@map("vendor_order_status_history")
 }
