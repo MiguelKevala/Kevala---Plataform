@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
-import { VendorStatusBadge } from "@/components/vendor";
+import { VendorOrderActions, VendorStatusBadge } from "@/components/vendor";
 import { formatDate, formatDateTime } from "@/lib/format-date";
+import { getCurrentSession } from "@/modules/auth/get-session";
+import { getUserPermissions } from "@/modules/rbac/get-user-permissions";
+import { PERMISSIONS, type PermissionKey } from "@/modules/rbac/permissions";
 import { getVendorOrderWithHistory } from "@/modules/vendor/repository/vendor-order.repository";
 import { VENDOR_ORDER_STATUS_LABELS } from "@/modules/vendor/status";
 
@@ -18,6 +21,11 @@ export default async function VendorOrderDetailPage({ params }: VendorOrderDetai
     notFound();
   }
 
+  const session = await getCurrentSession();
+  const permissions: Set<PermissionKey> = session
+    ? await getUserPermissions(session.user.id)
+    : new Set();
+
   const rejection =
     order.status === "REJECTED"
       ? order.statusHistory.find((entry) => entry.newStatus === "REJECTED")
@@ -30,11 +38,20 @@ export default async function VendorOrderDetailPage({ params }: VendorOrderDetai
           <h1 className="text-xl font-semibold text-neutral-900">{order.orderNumber}</h1>
           <VendorStatusBadge status={order.status} />
         </div>
-        <Link href="/vendor/ordenes">
-          <Button variant="outline" size="sm">
-            Volver a Órdenes
-          </Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <VendorOrderActions
+            orderId={order.id}
+            status={order.status}
+            canConfirm={permissions.has(PERMISSIONS.VENDOR_ORDERS_CONFIRM)}
+            canReject={permissions.has(PERMISSIONS.VENDOR_ORDERS_REJECT)}
+            canDeliver={permissions.has(PERMISSIONS.VENDOR_ORDERS_DELIVER)}
+          />
+          <Link href="/vendor/ordenes">
+            <Button variant="outline" size="sm">
+              Volver a Órdenes
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Card>

@@ -12,6 +12,9 @@ const PERMISSIONS = [
   { key: "audit.view", description: "Consultar el registro de auditoría." },
   { key: "vendor.view", description: "Acceso general al módulo Vendor." },
   { key: "vendor.orders.view", description: "Ver el listado y detalle de órdenes Vendor." },
+  { key: "vendor.orders.confirm", description: "Confirmar órdenes Vendor pendientes." },
+  { key: "vendor.orders.reject", description: "Rechazar órdenes Vendor pendientes." },
+  { key: "vendor.orders.deliver", description: "Marcar órdenes Vendor confirmadas como entregadas." },
 ] as const;
 
 const ROLES: Array<{ name: string; description: string; permissions: readonly string[] }> = [
@@ -22,7 +25,7 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
   },
   {
     name: "Admin",
-    description: "Administra usuarios, consulta auditoría y accede a Vendor en modo lectura.",
+    description: "Administra usuarios, consulta auditoría y opera el módulo Vendor.",
     permissions: [
       "users.view",
       "users.manage",
@@ -30,17 +33,32 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
       "audit.view",
       "vendor.view",
       "vendor.orders.view",
+      "vendor.orders.confirm",
+      "vendor.orders.reject",
+      "vendor.orders.deliver",
     ],
   },
   {
     name: "Manager",
-    description: "Rol operativo. Acceso de lectura a Vendor.",
-    permissions: ["vendor.view", "vendor.orders.view"],
+    description: "Rol operativo. Opera el módulo Vendor.",
+    permissions: [
+      "vendor.view",
+      "vendor.orders.view",
+      "vendor.orders.confirm",
+      "vendor.orders.reject",
+      "vendor.orders.deliver",
+    ],
   },
   {
     name: "Operator",
-    description: "Rol operativo. Acceso de lectura a Vendor.",
-    permissions: ["vendor.view", "vendor.orders.view"],
+    description: "Rol operativo. Opera el módulo Vendor.",
+    permissions: [
+      "vendor.view",
+      "vendor.orders.view",
+      "vendor.orders.confirm",
+      "vendor.orders.reject",
+      "vendor.orders.deliver",
+    ],
   },
   {
     name: "Viewer",
