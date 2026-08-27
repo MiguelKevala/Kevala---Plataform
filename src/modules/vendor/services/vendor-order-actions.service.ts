@@ -1,5 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma, VendorOrder, VendorOrderStatus } from "@/generated/prisma/client";
+import { getActiveUserIdsWithPermission } from "@/modules/rbac/get-users-with-permission";
+import { PERMISSIONS } from "@/modules/rbac/permissions";
+import {
+  buildVendorOrderNotificationContent,
+  type VendorOrderNotificationEvent,
+} from "@/modules/notifications/content";
+import { createNotifications } from "@/modules/notifications/service/create-notification";
 
 export interface VendorOrderActionContext {
   userId: string;
@@ -24,6 +31,12 @@ const TIMESTAMP_FIELD_BY_STATUS = {
   REJECTED: "rejectedAt",
   DELIVERED: "deliveredAt",
 } as const satisfies Partial<Record<VendorOrderStatus, keyof Prisma.VendorOrderUpdateManyMutationInput>>;
+
+const NOTIFICATION_EVENT_BY_TARGET_STATUS = {
+  CONFIRMED: "confirmed",
+  REJECTED: "rejected",
+  DELIVERED: "delivered",
+} as const satisfies Record<keyof typeof TIMESTAMP_FIELD_BY_STATUS, VendorOrderNotificationEvent>;
 
 interface RunTransitionParams {
   orderId: string;
@@ -50,7 +63,7 @@ async function runVendorOrderTransition(params: RunTransitionParams): Promise<Ve
 
   const existing = await prisma.vendorOrder.findUnique({
     where: { id: orderId },
-    select: { id: true },
+    select: { id: true, orderNumber: true },
   });
 
   if (!existing) {
@@ -98,6 +111,29 @@ async function runVendorOrderTransition(params: RunTransitionParams): Promise<Ve
           createdAt: now,
         },
       });
+
+      // Destinatarios: usuarios activos con vendor.orders.view, excepto quien
+      // ejecutó la acción. Sin concepto de "owner"/asignación individual en V1.
+      const recipientIds = (
+        await getActiveUserIdsWithPermission(PERMISSIONS.VENDOR_ORDERS_VIEW, tx)
+      ).filter((recipientId) => recipientId !== userId);
+
+      if (recipientIds.length > 0) {
+        const content = buildVendorOrderNotificationContent({
+          event: NOTIFICATION_EVENT_BY_TARGET_STATUS[to],
+          orderNumber: existing.orderNumber,
+        });
+
+        await createNotifications(
+          tx,
+          recipientIds.map((recipientId) => ({
+            userId: recipientId,
+            ...content,
+            entityType: "VendorOrder",
+            entityId: orderId,
+          })),
+        );
+      }
 
       return tx.vendorOrder.findUniqueOrThrow({ where: { id: orderId } });
     });

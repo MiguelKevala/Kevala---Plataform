@@ -29,6 +29,7 @@ model User {
   sessions                 Session[]
   auditLogs                AuditLog[]
   vendorOrderStatusChanges VendorOrderStatusHistory[]
+  notifications            Notification[]
 
   @@map("users")
 }
@@ -169,4 +170,28 @@ model VendorOrderStatusHistory {
 
   @@index([vendorOrderId])
   @@map("vendor_order_status_history")
+}
+
+// ---------------------------------------------------------------------------
+// Notificaciones in-app. Ver KevalaV1.pdf §22 y las decisiones de Fase 7:
+// solo canal in-app, sin email/WhatsApp/push, sin reminders/overdue
+// (dependen de reglas de deadline aún no aprobadas).
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  type       String
+  title      String
+  message    String
+  entityType String?   @map("entity_type")
+  entityId   String?   @map("entity_id")
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([createdAt])
+  @@map("notifications")
 }
