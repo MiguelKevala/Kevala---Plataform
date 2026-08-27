@@ -13,7 +13,7 @@ export default async function VendorOrdenesLayout({ children }: { children: Reac
 
   const permissions = await getUserPermissions(session.user.id);
   if (!permissions.has(PERMISSIONS.VENDOR_ORDERS_VIEW)) {
-    return <AccessDenied message="Tu usuario no tiene acceso al listado de órdenes." />;
+    return <AccessDenied message="You do not have access to the vendor orders list." />;
   }
 
   return <>{children}</>;

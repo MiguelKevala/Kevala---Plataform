@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import type { VendorOrderStatus } from "@/generated/prisma/client";
+import type { Prisma, VendorOrderStatus } from "@/generated/prisma/client";
 import { VENDOR_ORDER_STATUSES } from "../status";
+
+type VendorOrderWithCatalogs = Prisma.VendorOrderGetPayload<{
+  include: { carrier: true; mode: true };
+}>;
 
 export async function getOrderCountsByStatus(): Promise<Record<VendorOrderStatus, number>> {
   const counts = await prisma.vendorOrder.groupBy({
@@ -29,7 +33,10 @@ export async function getRecentPendingOrders(limit = 10) {
 
 export interface ListVendorOrdersParams {
   search?: string;
-  status?: VendorOrderStatus;
+  /** Uno o más estados. Con más de uno, se filtra con IN (usado por los
+   * accesos "Pending"/"History" del sidebar, que reutilizan esta misma
+   * pantalla con distintos filtros). */
+  status?: VendorOrderStatus[];
   dateFrom?: Date;
   dateTo?: Date;
   page: number;
@@ -37,7 +44,7 @@ export interface ListVendorOrdersParams {
 }
 
 export interface ListVendorOrdersResult {
-  items: Awaited<ReturnType<typeof prisma.vendorOrder.findMany>>;
+  items: VendorOrderWithCatalogs[];
   total: number;
 }
 
@@ -48,7 +55,7 @@ export async function listVendorOrders(
 
   const where = {
     ...(search ? { orderNumber: { contains: search, mode: "insensitive" as const } } : {}),
-    ...(status ? { status } : {}),
+    ...(status && status.length > 0 ? { status: { in: status } } : {}),
     ...(dateFrom || dateTo
       ? {
           orderDate: {
@@ -62,6 +69,7 @@ export async function listVendorOrders(
   const [items, total] = await Promise.all([
     prisma.vendorOrder.findMany({
       where,
+      include: { carrier: true, mode: true },
       orderBy: { orderDate: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -76,10 +84,19 @@ export async function getVendorOrderWithHistory(id: string) {
   return prisma.vendorOrder.findUnique({
     where: { id },
     include: {
+      carrier: true,
+      mode: true,
       statusHistory: {
         orderBy: { createdAt: "asc" },
         include: { changedByUser: { select: { id: true, name: true } } },
       },
     },
+  });
+}
+
+export async function getVendorOrderById(id: string) {
+  return prisma.vendorOrder.findUnique({
+    where: { id },
+    include: { carrier: true, mode: true },
   });
 }

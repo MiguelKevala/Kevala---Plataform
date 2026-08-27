@@ -124,12 +124,23 @@ describe("VendorOrder repository", () => {
     it("filtra por estado", async () => {
       const { items, total } = await listVendorOrders({
         search: PREFIX,
-        status: "PENDING",
+        status: ["PENDING"],
         page: 1,
         pageSize: 20,
       });
       expect(total).toBe(2);
       expect(items.every((item) => item.status === "PENDING")).toBe(true);
+    });
+
+    it("filtra por varios estados a la vez", async () => {
+      const { items, total } = await listVendorOrders({
+        search: PREFIX,
+        status: ["REJECTED", "DELIVERED"],
+        page: 1,
+        pageSize: 20,
+      });
+      expect(total).toBe(2);
+      expect(items.every((item) => item.status === "REJECTED" || item.status === "DELIVERED")).toBe(true);
     });
 
     it("filtra por rango de fecha de orden", async () => {

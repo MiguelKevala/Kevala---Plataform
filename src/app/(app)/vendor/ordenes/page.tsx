@@ -2,6 +2,9 @@ import Link from "next/link";
 import { Button, Input, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui";
 import { VendorStatusBadge } from "@/components/vendor";
 import { formatDate } from "@/lib/format-date";
+import { getCurrentSession } from "@/modules/auth/get-session";
+import { getUserPermissions } from "@/modules/rbac/get-user-permissions";
+import { PERMISSIONS } from "@/modules/rbac/permissions";
 import { getRelevantDeadline } from "@/modules/vendor/get-relevant-deadline";
 import { listVendorOrders } from "@/modules/vendor/repository/vendor-order.repository";
 import { VENDOR_ORDER_STATUSES, VENDOR_ORDER_STATUS_LABELS } from "@/modules/vendor/status";
@@ -17,8 +20,15 @@ function firstValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function isVendorOrderStatus(value: string | undefined): value is VendorOrderStatus {
+function isVendorOrderStatus(value: string): value is VendorOrderStatus {
   return VENDOR_ORDER_STATUSES.includes(value as VendorOrderStatus);
+}
+
+/** Soporta uno o varios estados separados por coma (usado por los accesos
+ * "Pending"/"History" del sidebar, que reutilizan esta misma pantalla). */
+function parseStatusParam(value: string | undefined): VendorOrderStatus[] {
+  if (!value) return [];
+  return value.split(",").map((entry) => entry.trim()).filter(isVendorOrderStatus);
 }
 
 function buildPageHref(params: Record<string, string | undefined>, page: number): string {
@@ -35,14 +45,18 @@ export default async function VendorOrdenesPage({ searchParams }: VendorOrdenesP
 
   const search = firstValue(resolvedParams.q);
   const statusParam = firstValue(resolvedParams.status);
-  const status = isVendorOrderStatus(statusParam) ? statusParam : undefined;
+  const statuses = parseStatusParam(statusParam);
+  const singleStatus = statuses.length === 1 ? statuses[0] : undefined;
   const from = firstValue(resolvedParams.from);
   const to = firstValue(resolvedParams.to);
   const page = Math.max(1, Number(firstValue(resolvedParams.page)) || 1);
 
+  const session = await getCurrentSession();
+  const canCreate = session ? (await getUserPermissions(session.user.id)).has(PERMISSIONS.VENDOR_ORDERS_CREATE) : false;
+
   const { items, total } = await listVendorOrders({
     search,
-    status,
+    status: statuses,
     dateFrom: from ? new Date(from) : undefined,
     dateTo: to ? new Date(to) : undefined,
     page,
@@ -50,42 +64,51 @@ export default async function VendorOrdenesPage({ searchParams }: VendorOrdenesP
   });
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const persistedParams = { q: search, status, from, to };
+  const persistedParams = { q: search, status: statusParam, from, to };
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-neutral-900">Órdenes Vendor</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-neutral-900">Vendor Orders</h1>
+        {canCreate && (
+          <Link href="/vendor/ordenes/new">
+            <Button>New Order</Button>
+          </Link>
+        )}
+      </div>
 
       <form method="GET" className="flex flex-wrap items-end gap-3">
-        <Input label="Buscar por PO" name="q" defaultValue={search} placeholder="PO-0001" />
-        <Select label="Estado" name="status" defaultValue={status ?? ""}>
-          <option value="">Todos</option>
+        <Input label="Search by PO" name="q" defaultValue={search} placeholder="PO-0001" />
+        <Select label="Status" name="status" defaultValue={singleStatus ?? ""}>
+          <option value="">All</option>
           {VENDOR_ORDER_STATUSES.map((value) => (
             <option key={value} value={value}>
               {VENDOR_ORDER_STATUS_LABELS[value]}
             </option>
           ))}
         </Select>
-        <Input label="Fecha desde" type="date" name="from" defaultValue={from} />
-        <Input label="Fecha hasta" type="date" name="to" defaultValue={to} />
-        <Button type="submit">Buscar</Button>
+        <Input label="From Date" type="date" name="from" defaultValue={from} />
+        <Input label="To Date" type="date" name="to" defaultValue={to} />
+        <Button type="submit">Search</Button>
       </form>
 
       {items.length === 0 ? (
         <p className="text-sm text-neutral-500">
-          {total === 0 && !search && !status && !from && !to
-            ? "No hay órdenes registradas todavía."
-            : "No se encontraron órdenes con los filtros aplicados."}
+          {total === 0 && !search && statuses.length === 0 && !from && !to
+            ? "No vendor orders yet."
+            : "No orders match the applied filters."}
         </p>
       ) : (
         <>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>PO</TableHead>
-                <TableHead>Fecha de orden</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Fecha límite relevante</TableHead>
+                <TableHead>PO #</TableHead>
+                <TableHead>Order Date</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Carrier</TableHead>
+                <TableHead>Mode</TableHead>
+                <TableHead>Relevant Deadline</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -103,6 +126,8 @@ export default async function VendorOrdenesPage({ searchParams }: VendorOrdenesP
                   <TableCell>
                     <VendorStatusBadge status={order.status} />
                   </TableCell>
+                  <TableCell>{order.carrier?.name ?? "—"}</TableCell>
+                  <TableCell>{order.mode?.name ?? "—"}</TableCell>
                   <TableCell>{formatDate(getRelevantDeadline(order))}</TableCell>
                 </TableRow>
               ))}
@@ -111,20 +136,20 @@ export default async function VendorOrdenesPage({ searchParams }: VendorOrdenesP
 
           <div className="flex items-center justify-between text-sm text-neutral-500">
             <span>
-              Página {page} de {totalPages} — {total} orden{total === 1 ? "" : "es"}
+              Page {page} of {totalPages} — {total} order{total === 1 ? "" : "s"}
             </span>
             <div className="flex gap-2">
               {page > 1 && (
                 <Link href={buildPageHref(persistedParams, page - 1)}>
                   <Button variant="outline" size="sm">
-                    Anterior
+                    Previous
                   </Button>
                 </Link>
               )}
               {page < totalPages && (
                 <Link href={buildPageHref(persistedParams, page + 1)}>
                   <Button variant="outline" size="sm">
-                    Siguiente
+                    Next
                   </Button>
                 </Link>
               )}

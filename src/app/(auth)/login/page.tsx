@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Toast } from "@/components/ui";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  INVALID_CREDENTIALS: "Correo o contraseña incorrectos.",
-  INACTIVE_USER: "Esta cuenta está inactiva.",
-  VALIDATION_ERROR: "Revisa los datos ingresados.",
+  INVALID_CREDENTIALS: "Incorrect email or password.",
+  INACTIVE_USER: "This account is inactive.",
+  VALIDATION_ERROR: "Please review the entered information.",
 };
 
 function LoginForm() {
@@ -32,7 +32,7 @@ function LoginForm() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        setError(ERROR_MESSAGES[data?.error] ?? "No se pudo iniciar sesión.");
+        setError(ERROR_MESSAGES[data?.error] ?? "Could not log in.");
         return;
       }
 
@@ -48,7 +48,7 @@ function LoginForm() {
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       {error && <Toast variant="danger" title={error} />}
       <Input
-        label="Correo"
+        label="Email"
         type="email"
         autoComplete="email"
         required
@@ -56,7 +56,7 @@ function LoginForm() {
         onChange={(event) => setEmail(event.target.value)}
       />
       <Input
-        label="Contraseña"
+        label="Password"
         type="password"
         autoComplete="current-password"
         required
@@ -64,7 +64,7 @@ function LoginForm() {
         onChange={(event) => setPassword(event.target.value)}
       />
       <Button type="submit" disabled={loading} className="mt-2">
-        {loading ? "Ingresando..." : "Ingresar"}
+        {loading ? "Logging in..." : "Log In"}
       </Button>
     </form>
   );
@@ -75,7 +75,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-neutral-50 p-6">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Iniciar sesión en KEVALA</CardTitle>
+          <CardTitle>Log in to KEVALA</CardTitle>
         </CardHeader>
         <CardContent>
           <Suspense fallback={null}>

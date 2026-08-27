@@ -13,7 +13,7 @@ export default async function VendorLayout({ children }: { children: ReactNode }
 
   const permissions = await getUserPermissions(session.user.id);
   if (!permissions.has(PERMISSIONS.VENDOR_VIEW)) {
-    return <AccessDenied message="Tu usuario no tiene acceso al módulo Vendor." />;
+    return <AccessDenied message="You do not have access to the Vendor module." />;
   }
 
   return <>{children}</>;

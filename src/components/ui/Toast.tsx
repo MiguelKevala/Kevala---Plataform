@@ -38,7 +38,7 @@ export const Toast = forwardRef<HTMLDivElement, ToastProps>(
         <button
           type="button"
           onClick={onDismiss}
-          aria-label="Cerrar notificación"
+          aria-label="Dismiss notification"
           className="text-sm opacity-60 hover:opacity-100"
         >
           ✕

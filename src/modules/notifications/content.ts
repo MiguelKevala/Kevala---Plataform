@@ -31,14 +31,14 @@ export function buildVendorOrderNotificationContent(
 
   switch (event) {
     case "confirmed":
-      return { type, title: "Orden confirmada", message: `La orden ${orderNumber} fue confirmada.` };
+      return { type, title: "Order Confirmed", message: `Order ${orderNumber} was confirmed.` };
     case "rejected":
-      return { type, title: "Orden rechazada", message: `La orden ${orderNumber} fue rechazada.` };
+      return { type, title: "Order Rejected", message: `Order ${orderNumber} was rejected.` };
     case "delivered":
       return {
         type,
-        title: "Orden entregada",
-        message: `La orden ${orderNumber} fue marcada como entregada.`,
+        title: "Order Delivered",
+        message: `Order ${orderNumber} was marked as delivered.`,
       };
   }
 }

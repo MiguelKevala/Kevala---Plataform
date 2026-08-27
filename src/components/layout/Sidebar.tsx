@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
 import { cn } from "@/lib/cn";
 import {
@@ -13,18 +13,36 @@ import {
   VendorIcon,
 } from "./icons";
 
+interface NavChild {
+  label: string;
+  href: string;
+}
+
 interface NavItem {
   label: string;
   href?: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
+  children?: NavChild[];
 }
 
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: DashboardIcon },
-  { label: "Vendor", href: "/vendor", icon: VendorIcon },
-  { label: "Inventario", icon: InventoryIcon },
-  { label: "Productos", icon: ProductsIcon },
-  { label: "Configuración", icon: SettingsIcon },
+  {
+    label: "Vendor",
+    href: "/vendor",
+    icon: VendorIcon,
+    children: [
+      { label: "Dashboard", href: "/vendor" },
+      { label: "Orders", href: "/vendor/ordenes" },
+      { label: "Pending", href: "/vendor/ordenes?status=PENDING" },
+      { label: "History", href: "/vendor/ordenes?status=REJECTED,DELIVERED" },
+      { label: "Carriers", href: "/vendor/carriers" },
+      { label: "Modes", href: "/vendor/modes" },
+    ],
+  },
+  { label: "Inventory", icon: InventoryIcon },
+  { label: "Products", icon: ProductsIcon },
+  { label: "Settings", icon: SettingsIcon },
 ];
 
 export interface SidebarProps {
@@ -34,6 +52,20 @@ export interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  function isChildActive(child: NavChild): boolean {
+    if (child.href === "/vendor/ordenes?status=PENDING") {
+      return pathname === "/vendor/ordenes" && searchParams.get("status") === "PENDING";
+    }
+    if (child.href === "/vendor/ordenes?status=REJECTED,DELIVERED") {
+      return pathname === "/vendor/ordenes" && searchParams.get("status") === "REJECTED,DELIVERED";
+    }
+    if (child.href === "/vendor/ordenes") {
+      return pathname === "/vendor/ordenes" && !searchParams.get("status");
+    }
+    return pathname === child.href;
+  }
 
   return (
     <aside
@@ -46,7 +78,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <button
           type="button"
           onClick={onToggle}
-          aria-label={collapsed ? "Expandir menú" : "Contraer menú"}
+          aria-label={collapsed ? "Expand menu" : "Collapse menu"}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100"
         >
           <MenuIcon className="h-5 w-5" />
@@ -58,7 +90,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         )}
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 p-2">
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
         {navItems.map((item) => {
           const isActive = item.href ? pathname.startsWith(item.href) : false;
           const Icon = item.icon;
@@ -86,20 +118,41 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           }
 
           return (
-            <Link
-              key={item.label}
-              href={item.href}
-              title={collapsed ? item.label : undefined}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 transition-colors",
-                collapsed && "justify-center",
-                isActive
-                  ? "bg-brand-50 text-brand-800"
-                  : "text-neutral-600 hover:bg-neutral-100",
+            <div key={item.label} className="flex flex-col gap-1">
+              <Link
+                href={item.href}
+                title={collapsed ? item.label : undefined}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 transition-colors",
+                  collapsed && "justify-center",
+                  isActive ? "bg-brand-50 text-brand-800" : "text-neutral-600 hover:bg-neutral-100",
+                )}
+              >
+                {content}
+              </Link>
+
+              {!collapsed && item.children && (
+                <div className="ml-8 flex flex-col gap-1 border-l border-neutral-100 pl-3">
+                  {item.children.map((child) => {
+                    const childActive = isChildActive(child);
+                    return (
+                      <Link
+                        key={child.label}
+                        href={child.href}
+                        className={cn(
+                          "truncate rounded-md px-2 py-1.5 text-sm transition-colors",
+                          childActive
+                            ? "bg-brand-50 font-medium text-brand-800"
+                            : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800",
+                        )}
+                      >
+                        {child.label}
+                      </Link>
+                    );
+                  })}
+                </div>
               )}
-            >
-              {content}
-            </Link>
+            </div>
           );
         })}
       </nav>

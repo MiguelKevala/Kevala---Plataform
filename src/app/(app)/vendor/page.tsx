@@ -19,22 +19,22 @@ export default async function VendorDashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <OrderCountCard
-          label="Pendientes"
+          label="Pending"
           count={counts.PENDING}
           href="/vendor/ordenes?status=PENDING"
         />
         <OrderCountCard
-          label="Confirmadas"
+          label="Confirmed"
           count={counts.CONFIRMED}
           href="/vendor/ordenes?status=CONFIRMED"
         />
         <OrderCountCard
-          label="Rechazadas"
+          label="Rejected"
           count={counts.REJECTED}
           href="/vendor/ordenes?status=REJECTED"
         />
         <OrderCountCard
-          label="Entregadas"
+          label="Delivered"
           count={counts.DELIVERED}
           href="/vendor/ordenes?status=DELIVERED"
         />
@@ -42,18 +42,18 @@ export default async function VendorDashboardPage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-base font-semibold text-neutral-900">
-          Órdenes que requieren atención
+          Orders requiring attention
         </h2>
 
         {pendingOrders.length === 0 ? (
-          <p className="text-sm text-neutral-500">No hay órdenes pendientes de confirmación.</p>
+          <p className="text-sm text-neutral-500">No orders are pending confirmation.</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>PO</TableHead>
-                <TableHead>Fecha de orden</TableHead>
-                <TableHead>Estado</TableHead>
+                <TableHead>PO #</TableHead>
+                <TableHead>Order Date</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

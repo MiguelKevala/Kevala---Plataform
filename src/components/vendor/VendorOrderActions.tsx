@@ -19,11 +19,11 @@ const REASON_MAX_LENGTH = 500;
 const COMMENTS_MAX_LENGTH = 1000;
 
 const ERROR_MESSAGES: Record<string, string> = {
-  UNAUTHENTICATED: "Tu sesión expiró. Vuelve a iniciar sesión.",
-  FORBIDDEN: "No tienes permiso para realizar esta acción.",
-  NOT_FOUND: "La orden ya no existe.",
-  CONFLICT: "La orden ya cambió de estado. Actualiza la página e intenta de nuevo.",
-  VALIDATION_ERROR: "Revisa los datos ingresados.",
+  UNAUTHENTICATED: "Your session expired. Please log in again.",
+  FORBIDDEN: "You do not have permission to perform this action.",
+  NOT_FOUND: "This order no longer exists.",
+  CONFLICT: "This order already changed status. Refresh the page and try again.",
+  VALIDATION_ERROR: "Please review the entered information.",
 };
 
 export function VendorOrderActions({
@@ -62,7 +62,7 @@ export function VendorOrderActions({
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        setError(ERROR_MESSAGES[data?.error] ?? "No se pudo completar la acción.");
+        setError(ERROR_MESSAGES[data?.error] ?? "Could not complete this action.");
         return;
       }
 
@@ -78,7 +78,7 @@ export function VendorOrderActions({
   function handleReject() {
     const trimmed = reason.trim();
     if (!trimmed) {
-      setReasonError("El motivo es obligatorio.");
+      setReasonError("Reason is required.");
       return;
     }
     setReasonError(null);
@@ -98,17 +98,17 @@ export function VendorOrderActions({
       <div className="flex items-center gap-2">
         {showConfirm && (
           <Button size="sm" onClick={() => setActiveModal("confirm")}>
-            Confirmar orden
+            Confirm Order
           </Button>
         )}
         {showReject && (
           <Button size="sm" variant="danger" onClick={() => setActiveModal("reject")}>
-            Rechazar orden
+            Reject Order
           </Button>
         )}
         {showDeliver && (
           <Button size="sm" onClick={() => setActiveModal("deliver")}>
-            Marcar como entregada
+            Mark as Delivered
           </Button>
         )}
       </div>
@@ -121,20 +121,20 @@ export function VendorOrderActions({
         <Modal
           open={activeModal === "confirm"}
           onClose={closeModal}
-          title="Confirmar orden"
+          title="Confirm Order"
           footer={
             <>
               <Button variant="outline" size="sm" onClick={closeModal} disabled={loading}>
-                Cancelar
+                Cancel
               </Button>
               <Button size="sm" onClick={() => runAction("confirm")} disabled={loading}>
-                {loading ? "Confirmando..." : "Confirmar"}
+                {loading ? "Confirming..." : "Confirm"}
               </Button>
             </>
           }
         >
           <p className="text-sm text-neutral-600">
-            La orden pasará al estado <strong>Confirmada</strong>. ¿Deseas continuar?
+            This order will move to <strong>Confirmed</strong>. Do you want to continue?
           </p>
         </Modal>
       )}
@@ -143,20 +143,20 @@ export function VendorOrderActions({
         <Modal
           open={activeModal === "deliver"}
           onClose={closeModal}
-          title="Marcar como entregada"
+          title="Mark as Delivered"
           footer={
             <>
               <Button variant="outline" size="sm" onClick={closeModal} disabled={loading}>
-                Cancelar
+                Cancel
               </Button>
               <Button size="sm" onClick={() => runAction("deliver")} disabled={loading}>
-                {loading ? "Guardando..." : "Marcar como entregada"}
+                {loading ? "Saving..." : "Mark as Delivered"}
               </Button>
             </>
           }
         >
           <p className="text-sm text-neutral-600">
-            La orden pasará al estado <strong>Entregada</strong>. ¿Deseas continuar?
+            This order will move to <strong>Delivered</strong>. Do you want to continue?
           </p>
         </Modal>
       )}
@@ -165,21 +165,21 @@ export function VendorOrderActions({
         <Modal
           open={activeModal === "reject"}
           onClose={closeModal}
-          title="Rechazar orden"
+          title="Reject Order"
           footer={
             <>
               <Button variant="outline" size="sm" onClick={closeModal} disabled={loading}>
-                Cancelar
+                Cancel
               </Button>
               <Button variant="danger" size="sm" onClick={handleReject} disabled={loading}>
-                {loading ? "Rechazando..." : "Confirmar rechazo"}
+                {loading ? "Rejecting..." : "Confirm Rejection"}
               </Button>
             </>
           }
         >
           <div className="flex flex-col gap-4">
             <Input
-              label="Motivo"
+              label="Reason"
               required
               maxLength={REASON_MAX_LENGTH}
               value={reason}
@@ -187,7 +187,7 @@ export function VendorOrderActions({
               error={reasonError ?? undefined}
             />
             <Input
-              label="Comentarios (opcional)"
+              label="Comments (optional)"
               maxLength={COMMENTS_MAX_LENGTH}
               value={comments}
               onChange={(event) => setComments(event.target.value)}

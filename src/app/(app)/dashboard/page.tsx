@@ -3,7 +3,7 @@ export default function DashboardPage() {
     <div>
       <h1 className="text-xl font-semibold text-neutral-900">Dashboard</h1>
       <p className="mt-2 text-sm text-neutral-500">
-        Contenido pendiente de fases posteriores.
+        Content pending future phases.
       </p>
     </div>
   );

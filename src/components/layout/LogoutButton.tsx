@@ -25,7 +25,7 @@ export function LogoutButton() {
       disabled={loading}
       className="text-sm font-medium text-neutral-500 hover:text-neutral-800 disabled:opacity-50"
     >
-      {loading ? "Saliendo..." : "Cerrar sesión"}
+      {loading ? "Logging out..." : "Log Out"}
     </button>
   );
 }

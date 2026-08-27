@@ -15,6 +15,10 @@ const PERMISSIONS = [
   { key: "vendor.orders.confirm", description: "Confirmar órdenes Vendor pendientes." },
   { key: "vendor.orders.reject", description: "Rechazar órdenes Vendor pendientes." },
   { key: "vendor.orders.deliver", description: "Marcar órdenes Vendor confirmadas como entregadas." },
+  { key: "vendor.orders.create", description: "Crear nuevas órdenes Vendor." },
+  { key: "vendor.orders.edit", description: "Editar la información operativa de órdenes Vendor." },
+  { key: "vendor.carriers.manage", description: "Administrar el catálogo de carriers (crear, editar, activar/desactivar)." },
+  { key: "vendor.modes.manage", description: "Administrar el catálogo de modes (crear, editar, activar/desactivar)." },
 ] as const;
 
 const ROLES: Array<{ name: string; description: string; permissions: readonly string[] }> = [
@@ -36,6 +40,10 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
       "vendor.orders.confirm",
       "vendor.orders.reject",
       "vendor.orders.deliver",
+      "vendor.orders.create",
+      "vendor.orders.edit",
+      "vendor.carriers.manage",
+      "vendor.modes.manage",
     ],
   },
   {
@@ -47,6 +55,8 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
       "vendor.orders.confirm",
       "vendor.orders.reject",
       "vendor.orders.deliver",
+      "vendor.orders.create",
+      "vendor.orders.edit",
     ],
   },
   {
@@ -58,6 +68,8 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
       "vendor.orders.confirm",
       "vendor.orders.reject",
       "vendor.orders.deliver",
+      "vendor.orders.create",
+      "vendor.orders.edit",
     ],
   },
   {
@@ -66,6 +78,11 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
     permissions: ["vendor.view", "vendor.orders.view"],
   },
 ];
+
+// Fase 8: seed obligatorio de Modes. Solo crea si no existe — no fuerza
+// isActive en cada corrida, para no reactivar un Mode que un admin desactivó
+// deliberadamente después del seed inicial.
+const MODES = ["LTL", "SP"] as const;
 
 async function main() {
   for (const permission of PERMISSIONS) {
@@ -102,6 +119,14 @@ async function main() {
         create: { roleId: savedRole.id, permissionId: permission.id },
       });
     }
+  }
+
+  for (const name of MODES) {
+    await prisma.mode.upsert({
+      where: { name },
+      update: {},
+      create: { name, isActive: true },
+    });
   }
 
   console.log("RBAC seed completado.");

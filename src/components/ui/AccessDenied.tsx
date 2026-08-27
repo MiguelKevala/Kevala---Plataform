@@ -11,15 +11,15 @@ export function AccessDenied({ message }: AccessDeniedProps) {
     <div className="flex flex-1 items-center justify-center p-6">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Acceso denegado</CardTitle>
+          <CardTitle>Access Denied</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-neutral-500">
-            {message ?? "Tu usuario no tiene permiso para ver esta sección."}
+            {message ?? "Your account does not have permission to view this section."}
           </p>
           <Link href="/dashboard">
             <Button variant="outline" size="sm">
-              Volver al Dashboard
+              Back to Dashboard
             </Button>
           </Link>
         </CardContent>

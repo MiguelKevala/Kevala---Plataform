@@ -1,6 +1,7 @@
 export { Button, type ButtonProps } from "./Button";
 export { Input, type InputProps } from "./Input";
 export { Select, type SelectProps } from "./Select";
+export { Checkbox, type CheckboxProps } from "./Checkbox";
 export { AccessDenied, type AccessDeniedProps } from "./AccessDenied";
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "./Card";
 export { Badge, type BadgeProps } from "./Badge";

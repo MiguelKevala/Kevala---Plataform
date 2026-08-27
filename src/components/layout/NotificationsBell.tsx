@@ -108,7 +108,7 @@ export function NotificationsBell() {
     <div className="relative" ref={containerRef}>
       <button
         type="button"
-        aria-label="Notificaciones"
+        aria-label="Notifications"
         onClick={handleToggle}
         className="relative flex h-9 w-9 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100"
       >
@@ -123,19 +123,19 @@ export function NotificationsBell() {
       {open && (
         <div className="absolute right-0 top-11 z-20 flex w-80 flex-col rounded-lg border border-neutral-200 bg-white shadow-lg">
           <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
-            <span className="text-sm font-semibold text-neutral-900">Notificaciones</span>
+            <span className="text-sm font-semibold text-neutral-900">Notifications</span>
             {unreadCount > 0 && (
               <Button variant="ghost" size="sm" onClick={handleMarkAllAsRead}>
-                Marcar todas como leídas
+                Mark all as read
               </Button>
             )}
           </div>
 
           <div className="max-h-96 overflow-y-auto">
             {loading && items.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-neutral-500">Cargando...</p>
+              <p className="px-4 py-6 text-center text-sm text-neutral-500">Loading...</p>
             ) : items.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-neutral-500">No tienes notificaciones.</p>
+              <p className="px-4 py-6 text-center text-sm text-neutral-500">You have no notifications.</p>
             ) : (
               <ul className="flex flex-col divide-y divide-neutral-100">
                 {items.map((notification) => (

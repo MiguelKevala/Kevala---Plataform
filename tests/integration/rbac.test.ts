@@ -48,7 +48,7 @@ describe("RBAC", () => {
   });
 
   describe("catálogo de permisos", () => {
-    it("tiene exactamente los 10 permisos aprobados, sin permissions.manage", async () => {
+    it("tiene exactamente los 14 permisos aprobados, sin permissions.manage", async () => {
       const permissions = await prisma.permission.findMany({ select: { key: true } });
       const keys = permissions.map((permission) => permission.key).sort();
 
@@ -64,6 +64,10 @@ describe("RBAC", () => {
           PERMISSIONS.VENDOR_ORDERS_CONFIRM,
           PERMISSIONS.VENDOR_ORDERS_REJECT,
           PERMISSIONS.VENDOR_ORDERS_DELIVER,
+          PERMISSIONS.VENDOR_ORDERS_CREATE,
+          PERMISSIONS.VENDOR_ORDERS_EDIT,
+          PERMISSIONS.VENDOR_CARRIERS_MANAGE,
+          PERMISSIONS.VENDOR_MODES_MANAGE,
         ].sort(),
       );
       expect(keys).not.toContain("permissions.manage");
@@ -71,15 +75,15 @@ describe("RBAC", () => {
   });
 
   describe("getUserPermissions", () => {
-    it("Super Admin tiene los 10 permisos", async () => {
+    it("Super Admin tiene los 14 permisos", async () => {
       const permissions = await getUserPermissions(superAdminUser.id);
-      expect(permissions.size).toBe(10);
+      expect(permissions.size).toBe(14);
       for (const key of Object.values(PERMISSIONS)) {
         expect(permissions.has(key)).toBe(true);
       }
     });
 
-    it("Admin tiene acceso administrativo y opera Vendor por completo", async () => {
+    it("Admin tiene acceso administrativo y opera Vendor por completo, incluyendo catálogos", async () => {
       const permissions = await getUserPermissions(adminUser.id);
       expect([...permissions].sort()).toEqual(
         [
@@ -92,12 +96,16 @@ describe("RBAC", () => {
           PERMISSIONS.VENDOR_ORDERS_CONFIRM,
           PERMISSIONS.VENDOR_ORDERS_REJECT,
           PERMISSIONS.VENDOR_ORDERS_DELIVER,
+          PERMISSIONS.VENDOR_ORDERS_CREATE,
+          PERMISSIONS.VENDOR_ORDERS_EDIT,
+          PERMISSIONS.VENDOR_CARRIERS_MANAGE,
+          PERMISSIONS.VENDOR_MODES_MANAGE,
         ].sort(),
       );
       expect(permissions.has(PERMISSIONS.ROLES_MANAGE)).toBe(false);
     });
 
-    it("Manager opera Vendor por completo (view + confirm + reject + deliver)", async () => {
+    it("Manager opera Vendor por completo (view + confirm + reject + deliver + create + edit), sin administrar catálogos", async () => {
       const permissions = await getUserPermissions(managerUser.id);
       expect([...permissions].sort()).toEqual(
         [
@@ -106,11 +114,15 @@ describe("RBAC", () => {
           PERMISSIONS.VENDOR_ORDERS_CONFIRM,
           PERMISSIONS.VENDOR_ORDERS_REJECT,
           PERMISSIONS.VENDOR_ORDERS_DELIVER,
+          PERMISSIONS.VENDOR_ORDERS_CREATE,
+          PERMISSIONS.VENDOR_ORDERS_EDIT,
         ].sort(),
       );
+      expect(permissions.has(PERMISSIONS.VENDOR_CARRIERS_MANAGE)).toBe(false);
+      expect(permissions.has(PERMISSIONS.VENDOR_MODES_MANAGE)).toBe(false);
     });
 
-    it("Operator opera Vendor por completo (view + confirm + reject + deliver)", async () => {
+    it("Operator opera Vendor por completo (view + confirm + reject + deliver + create + edit), sin administrar catálogos", async () => {
       const permissions = await getUserPermissions(operatorUser.id);
       expect([...permissions].sort()).toEqual(
         [
@@ -119,8 +131,12 @@ describe("RBAC", () => {
           PERMISSIONS.VENDOR_ORDERS_CONFIRM,
           PERMISSIONS.VENDOR_ORDERS_REJECT,
           PERMISSIONS.VENDOR_ORDERS_DELIVER,
+          PERMISSIONS.VENDOR_ORDERS_CREATE,
+          PERMISSIONS.VENDOR_ORDERS_EDIT,
         ].sort(),
       );
+      expect(permissions.has(PERMISSIONS.VENDOR_CARRIERS_MANAGE)).toBe(false);
+      expect(permissions.has(PERMISSIONS.VENDOR_MODES_MANAGE)).toBe(false);
     });
 
     it("Viewer solo tiene lectura: NO puede confirmar, rechazar ni entregar", async () => {

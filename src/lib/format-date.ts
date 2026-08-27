@@ -1,7 +1,7 @@
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "—";
   const value = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("es", { day: "2-digit", month: "2-digit", year: "numeric" }).format(
+  return new Intl.DateTimeFormat("en-US", { day: "2-digit", month: "2-digit", year: "numeric" }).format(
     value,
   );
 }
@@ -9,7 +9,7 @@ export function formatDate(date: Date | string | null | undefined): string {
 export function formatDateTime(date: Date | string | null | undefined): string {
   if (!date) return "—";
   const value = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("es", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
