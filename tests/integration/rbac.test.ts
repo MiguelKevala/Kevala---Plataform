@@ -44,7 +44,7 @@ describe("RBAC", () => {
   });
 
   describe("catálogo de permisos", () => {
-    it("tiene exactamente los 5 permisos aprobados, sin permissions.manage", async () => {
+    it("tiene exactamente los 7 permisos aprobados, sin permissions.manage", async () => {
       const permissions = await prisma.permission.findMany({ select: { key: true } });
       const keys = permissions.map((permission) => permission.key).sort();
 
@@ -55,22 +55,27 @@ describe("RBAC", () => {
           PERMISSIONS.ROLES_VIEW,
           PERMISSIONS.USERS_MANAGE,
           PERMISSIONS.USERS_VIEW,
+          PERMISSIONS.VENDOR_VIEW,
+          PERMISSIONS.VENDOR_ORDERS_VIEW,
         ].sort(),
       );
       expect(keys).not.toContain("permissions.manage");
+      expect(keys).not.toContain("vendor.orders.confirm");
+      expect(keys).not.toContain("vendor.orders.reject");
+      expect(keys).not.toContain("vendor.orders.deliver");
     });
   });
 
   describe("getUserPermissions", () => {
-    it("Super Admin tiene los 5 permisos", async () => {
+    it("Super Admin tiene los 7 permisos", async () => {
       const permissions = await getUserPermissions(superAdminUser.id);
-      expect(permissions.size).toBe(5);
+      expect(permissions.size).toBe(7);
       for (const key of Object.values(PERMISSIONS)) {
         expect(permissions.has(key)).toBe(true);
       }
     });
 
-    it("Admin tiene exactamente users.view, users.manage, roles.view, audit.view", async () => {
+    it("Admin tiene exactamente users.view, users.manage, roles.view, audit.view, vendor.view, vendor.orders.view", async () => {
       const permissions = await getUserPermissions(adminUser.id);
       expect([...permissions].sort()).toEqual(
         [
@@ -78,14 +83,18 @@ describe("RBAC", () => {
           PERMISSIONS.USERS_MANAGE,
           PERMISSIONS.ROLES_VIEW,
           PERMISSIONS.AUDIT_VIEW,
+          PERMISSIONS.VENDOR_VIEW,
+          PERMISSIONS.VENDOR_ORDERS_VIEW,
         ].sort(),
       );
       expect(permissions.has(PERMISSIONS.ROLES_MANAGE)).toBe(false);
     });
 
-    it("Manager no tiene permisos funcionales todavía", async () => {
+    it("Manager tiene exactamente vendor.view y vendor.orders.view", async () => {
       const permissions = await getUserPermissions(managerUser.id);
-      expect(permissions.size).toBe(0);
+      expect([...permissions].sort()).toEqual(
+        [PERMISSIONS.VENDOR_VIEW, PERMISSIONS.VENDOR_ORDERS_VIEW].sort(),
+      );
     });
 
     it("un usuario sin roles no tiene permisos", async () => {

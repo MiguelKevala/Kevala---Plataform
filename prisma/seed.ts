@@ -10,6 +10,8 @@ const PERMISSIONS = [
   { key: "roles.view", description: "Ver el catálogo de roles." },
   { key: "roles.manage", description: "Crear y editar roles y su relación con permisos." },
   { key: "audit.view", description: "Consultar el registro de auditoría." },
+  { key: "vendor.view", description: "Acceso general al módulo Vendor." },
+  { key: "vendor.orders.view", description: "Ver el listado y detalle de órdenes Vendor." },
 ] as const;
 
 const ROLES: Array<{ name: string; description: string; permissions: readonly string[] }> = [
@@ -20,23 +22,30 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
   },
   {
     name: "Admin",
-    description: "Administra usuarios y consulta auditoría.",
-    permissions: ["users.view", "users.manage", "roles.view", "audit.view"],
+    description: "Administra usuarios, consulta auditoría y accede a Vendor en modo lectura.",
+    permissions: [
+      "users.view",
+      "users.manage",
+      "roles.view",
+      "audit.view",
+      "vendor.view",
+      "vendor.orders.view",
+    ],
   },
   {
     name: "Manager",
-    description: "Rol operativo. Sin permisos funcionales todavía.",
-    permissions: [],
+    description: "Rol operativo. Acceso de lectura a Vendor.",
+    permissions: ["vendor.view", "vendor.orders.view"],
   },
   {
     name: "Operator",
-    description: "Rol operativo. Sin permisos funcionales todavía.",
-    permissions: [],
+    description: "Rol operativo. Acceso de lectura a Vendor.",
+    permissions: ["vendor.view", "vendor.orders.view"],
   },
   {
     name: "Viewer",
-    description: "Rol de solo lectura. Sin permisos funcionales todavía.",
-    permissions: [],
+    description: "Rol de solo lectura. Acceso de lectura a Vendor.",
+    permissions: ["vendor.view", "vendor.orders.view"],
   },
 ];
 
