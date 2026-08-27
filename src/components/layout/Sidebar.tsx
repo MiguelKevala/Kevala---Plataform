@@ -25,32 +25,46 @@ interface NavItem {
   children?: NavChild[];
 }
 
-const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: DashboardIcon },
-  {
-    label: "Vendor",
-    href: "/vendor",
-    icon: VendorIcon,
-    children: [
-      { label: "Dashboard", href: "/vendor" },
-      { label: "Orders", href: "/vendor/ordenes" },
-      { label: "Pending", href: "/vendor/ordenes?status=PENDING" },
-      { label: "History", href: "/vendor/ordenes?status=REJECTED,DELIVERED" },
-      { label: "Carriers", href: "/vendor/carriers" },
-      { label: "Modes", href: "/vendor/modes" },
-    ],
-  },
-  { label: "Inventory", icon: InventoryIcon },
-  { label: "Products", icon: ProductsIcon },
-  { label: "Settings", icon: SettingsIcon },
-];
-
 export interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  canManageCarriers: boolean;
+  canManageModes: boolean;
 }
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, canManageCarriers, canManageModes }: SidebarProps) {
+  const settingsChildren: NavChild[] = [
+    ...(canManageCarriers ? [{ label: "Carriers", href: "/settings/carriers" }] : []),
+    ...(canManageModes ? [{ label: "Modes", href: "/settings/modes" }] : []),
+  ];
+
+  const navItems: NavItem[] = [
+    { label: "Dashboard", href: "/dashboard", icon: DashboardIcon },
+    {
+      label: "Vendor",
+      href: "/vendor",
+      icon: VendorIcon,
+      children: [
+        { label: "Dashboard", href: "/vendor" },
+        { label: "Orders", href: "/vendor/ordenes" },
+        { label: "Pending", href: "/vendor/ordenes?status=PENDING" },
+        { label: "History", href: "/vendor/ordenes?status=REJECTED,DELIVERED" },
+      ],
+    },
+    { label: "Inventory", icon: InventoryIcon },
+    { label: "Products", icon: ProductsIcon },
+    ...(settingsChildren.length > 0
+      ? [
+          {
+            label: "Settings",
+            href: "/settings",
+            icon: SettingsIcon,
+            children: settingsChildren,
+          },
+        ]
+      : [{ label: "Settings", icon: SettingsIcon }]),
+  ];
+
   const pathname = usePathname();
   const searchParams = useSearchParams();
 

@@ -7,16 +7,43 @@ import {
   rejectVendorOrder,
   type VendorOrderActionContext,
 } from "@/modules/vendor/services/vendor-order-actions.service";
+import { createCarrier } from "@/modules/carriers/service/carrier-crud.service";
+import { createMode } from "@/modules/modes/service/mode-crud.service";
 
 const ORDER_PREFIX = "VACTION-";
+const CARRIER_PREFIX = "TEST-VACTION-CARRIER-";
+const MODE_PREFIX = "TEST-VACTION-MODE-";
 const USER_EMAIL = "vendor-action-test@kevala.test";
 
 const createdOrderIds: string[] = [];
+const createdCarrierIds: string[] = [];
+const createdModeIds: string[] = [];
 
 let actorId: string;
 let ctx: VendorOrderActionContext;
+let carrierId: string;
+let modeId: string;
 
-async function createOrder(status: VendorOrderStatus, suffix: string) {
+interface OrderOverrides {
+  tracking?: string | null;
+  carrierId?: string | null;
+  modeId?: string | null;
+  confirmationDeadline?: Date | null;
+  deliveryDeadline?: Date | null;
+  deliveryDate?: Date | null;
+  pickUpDate?: Date | null;
+  shipmentDate?: Date | null;
+  invoiceNumber?: number | null;
+  packingSlip?: boolean | null;
+  cartonLabels?: boolean | null;
+  bol?: boolean | null;
+  palletLabels?: boolean | null;
+  asn?: boolean | null;
+  carrierLabels?: boolean | null;
+  carrierLabelType?: string | null;
+}
+
+async function createOrder(status: VendorOrderStatus, suffix: string, overrides: OrderOverrides = {}) {
   const order = await prisma.vendorOrder.create({
     data: {
       orderNumber: `${ORDER_PREFIX}${suffix}`,
@@ -27,10 +54,35 @@ async function createOrder(status: VendorOrderStatus, suffix: string) {
         : {}),
       ...(status === "DELIVERED" ? { deliveredAt: new Date("2026-01-03") } : {}),
       ...(status === "REJECTED" ? { rejectedAt: new Date("2026-01-02") } : {}),
+      ...overrides,
     },
   });
   createdOrderIds.push(order.id);
   return order;
+}
+
+/** Orden CONFIRMED con toda la información requerida completa y consistente
+ * (lista para DELIVERED), usada como base para los tests de completitud. */
+async function createCompleteConfirmedOrder(suffix: string, overrides: OrderOverrides = {}) {
+  return createOrder("CONFIRMED", suffix, {
+    tracking: "1Z999AA10123456784",
+    carrierId,
+    modeId,
+    confirmationDeadline: new Date("2026-01-03"),
+    deliveryDeadline: new Date("2026-01-05"),
+    deliveryDate: new Date("2026-01-04"),
+    pickUpDate: new Date("2026-01-02"),
+    shipmentDate: new Date("2026-01-01"),
+    invoiceNumber: 4242,
+    packingSlip: true,
+    cartonLabels: true,
+    bol: true,
+    palletLabels: true,
+    asn: true,
+    carrierLabels: false,
+    carrierLabelType: null,
+    ...overrides,
+  });
 }
 
 async function cleanup() {
@@ -40,19 +92,44 @@ async function cleanup() {
     });
   }
   await prisma.vendorOrder.deleteMany({ where: { orderNumber: { startsWith: ORDER_PREFIX } } });
+
+  if (createdCarrierIds.length > 0) {
+    await prisma.auditLog.deleteMany({ where: { entityType: "Carrier", entityId: { in: createdCarrierIds } } });
+  }
+  await prisma.carrier.deleteMany({ where: { name: { startsWith: CARRIER_PREFIX } } });
+
+  if (createdModeIds.length > 0) {
+    await prisma.auditLog.deleteMany({ where: { entityType: "Mode", entityId: { in: createdModeIds } } });
+  }
+  await prisma.mode.deleteMany({ where: { name: { startsWith: MODE_PREFIX } } });
+
   await prisma.user.deleteMany({ where: { email: USER_EMAIL } });
 }
 
-describe("Vendor order actions (Fase 6)", () => {
+describe("Vendor order actions (Fase 6 / Fase 8.1)", () => {
   beforeAll(async () => {
     await cleanup();
     createdOrderIds.length = 0;
+    createdCarrierIds.length = 0;
+    createdModeIds.length = 0;
 
     const actor = await prisma.user.create({
       data: { email: USER_EMAIL, passwordHash: "not-a-real-hash", name: "Vendor Action Tester" },
     });
     actorId = actor.id;
     ctx = { userId: actorId, ipAddress: "127.0.0.1", userAgent: "vitest" };
+
+    const carrier = await createCarrier(`${CARRIER_PREFIX}A`, ctx);
+    if (carrier.ok) {
+      carrierId = carrier.carrier.id;
+      createdCarrierIds.push(carrierId);
+    }
+
+    const mode = await createMode(`${MODE_PREFIX}A`, ctx);
+    if (mode.ok) {
+      modeId = mode.mode.id;
+      createdModeIds.push(modeId);
+    }
   });
 
   afterAll(cleanup);
@@ -185,8 +262,8 @@ describe("Vendor order actions (Fase 6)", () => {
   });
 
   describe("deliverVendorOrder", () => {
-    it("CONFIRMED -> DELIVERED: actualiza estado, timestamp, historial y audit log", async () => {
-      const order = await createOrder("CONFIRMED", "D-ok");
+    it("CONFIRMED -> DELIVERED: actualiza estado, timestamp, historial y audit log (con checklist completo)", async () => {
+      const order = await createCompleteConfirmedOrder("D-ok");
 
       const result = await deliverVendorOrder(order.id, ctx);
 
@@ -227,6 +304,263 @@ describe("Vendor order actions (Fase 6)", () => {
       const order = await createOrder("DELIVERED", "D-already-delivered");
       const result = await deliverVendorOrder(order.id, ctx);
       expect(result).toEqual({ ok: false, error: "CONFLICT", currentStatus: "DELIVERED" });
+    });
+
+    describe("completitud del Shipping Checklist (Fase 8.1)", () => {
+      it("Tracking faltante -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-tracking", { tracking: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Tracking");
+        }
+      });
+
+      it("Tracking vacío -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-empty-tracking", { tracking: "   " });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Tracking");
+        }
+      });
+
+      it("Tracking válido con todo lo demás completo -> permitido", async () => {
+        const order = await createCompleteConfirmedOrder("D-valid-tracking");
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result.ok).toBe(true);
+      });
+
+      it("Carrier faltante -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-carrier", { carrierId: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Carrier");
+        }
+      });
+
+      it("Mode faltante -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-mode", { modeId: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Mode");
+        }
+      });
+
+      it("Carton Labels null -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-carton", { cartonLabels: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Carton Labels");
+        }
+      });
+
+      it("BOL null -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-bol", { bol: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("BOL");
+        }
+      });
+
+      it("Pallet Labels null -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-pallet", { palletLabels: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Pallet Labels");
+        }
+      });
+
+      it("ASN null -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-asn", { asn: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("ASN");
+        }
+      });
+
+      it("Carrier Labels null -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-carrier-labels", { carrierLabels: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Carrier Labels");
+        }
+      });
+
+      it("Carrier Labels = Yes sin tipo -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-yes-no-type", {
+          carrierLabels: true,
+          carrierLabelType: null,
+        });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Carrier Label Type");
+        }
+      });
+
+      it("Carrier Labels = No + BOL = No -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-labels-no-bol", {
+          carrierLabels: false,
+          bol: false,
+        });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("BOL");
+        }
+      });
+
+      it("Carrier Labels = No + BOL = Yes -> permitido", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-labels-yes-bol", {
+          carrierLabels: false,
+          bol: true,
+        });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result.ok).toBe(true);
+      });
+
+      it("Carrier Labels = Yes + UPS -> permitido", async () => {
+        const order = await createCompleteConfirmedOrder("D-labels-ups", {
+          carrierLabels: true,
+          carrierLabelType: "UPS",
+        });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result.ok).toBe(true);
+      });
+
+      it("Carrier Labels = Yes + OnTrac -> permitido", async () => {
+        const order = await createCompleteConfirmedOrder("D-labels-ontrac", {
+          carrierLabels: true,
+          carrierLabelType: "OnTrac",
+        });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result.ok).toBe(true);
+      });
+
+      it("Carrier Labels = Yes + AMZX -> permitido", async () => {
+        const order = await createCompleteConfirmedOrder("D-labels-amzx", {
+          carrierLabels: true,
+          carrierLabelType: "AMZX",
+        });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result.ok).toBe(true);
+      });
+
+      it("Confirmation Deadline null -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-conf-deadline", { confirmationDeadline: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Confirmation Deadline");
+        }
+      });
+
+      it("Delivery Deadline null -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-del-deadline", { deliveryDeadline: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Delivery Deadline");
+        }
+      });
+
+      it("Delivery Date null -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-delivery-date", { deliveryDate: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Delivery Date");
+        }
+      });
+
+      it("Pick Up Date null -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-pickup-date", { pickUpDate: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Pick Up Date");
+        }
+      });
+
+      it("Shipment Date null -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-shipment-date", { shipmentDate: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Shipment Date");
+        }
+      });
+
+      it("Packing Slip null -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-packing-slip", { packingSlip: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Packing Slip");
+        }
+      });
+
+      it("Packing Slip = false -> permitido (false no es faltante)", async () => {
+        const order = await createCompleteConfirmedOrder("D-packing-slip-false", { packingSlip: false });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result.ok).toBe(true);
+      });
+
+      it("Invoice # null -> rechazado con INCOMPLETE", async () => {
+        const order = await createCompleteConfirmedOrder("D-no-invoice", { invoiceNumber: null });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toContain("Invoice #");
+        }
+      });
+
+      it("múltiples campos faltantes -> INCOMPLETE lista todos los que faltan", async () => {
+        const order = await createCompleteConfirmedOrder("D-multi-missing", {
+          carrierId: null,
+          modeId: null,
+          tracking: null,
+          deliveryDate: null,
+          pickUpDate: null,
+          shipmentDate: null,
+          packingSlip: null,
+        });
+        const result = await deliverVendorOrder(order.id, ctx);
+        expect(result).toMatchObject({ ok: false, error: "INCOMPLETE" });
+        if (!result.ok && result.error === "INCOMPLETE") {
+          expect(result.missingFields).toEqual(
+            expect.arrayContaining([
+              "Carrier",
+              "Mode",
+              "Tracking",
+              "Delivery Date",
+              "Pick Up Date",
+              "Shipment Date",
+              "Packing Slip",
+            ]),
+          );
+        }
+      });
+
+      it("una orden incompleta no persiste ningún cambio (atomicidad del bloqueo)", async () => {
+        const order = await createCompleteConfirmedOrder("D-incomplete-atomic", { tracking: null });
+        await deliverVendorOrder(order.id, ctx);
+
+        const persisted = await prisma.vendorOrder.findUniqueOrThrow({ where: { id: order.id } });
+        expect(persisted.status).toBe("CONFIRMED");
+        expect(persisted.deliveredAt).toBeNull();
+
+        const history = await prisma.vendorOrderStatusHistory.count({ where: { vendorOrderId: order.id } });
+        expect(history).toBe(0);
+      });
     });
   });
 

@@ -6,6 +6,10 @@ import {
 } from "@/modules/vendor/services/vendor-order-crud.service";
 import { createCarrier, setCarrierActive } from "@/modules/carriers/service/carrier-crud.service";
 import { createMode } from "@/modules/modes/service/mode-crud.service";
+import {
+  computeConfirmationDeadline,
+  computeDeliveryDeadline,
+} from "@/modules/vendor/domain/vendor-order-deadlines";
 
 const ORDER_PREFIX = "VEDIT-";
 const CARRIER_PREFIX = "TEST-VEDIT-CARRIER-";
@@ -41,7 +45,7 @@ async function cleanup() {
   createdModeIds.length = 0;
 }
 
-describe("Vendor Order editing (Fase 8)", () => {
+describe("Vendor Order editing (Fase 8.1)", () => {
   let actor: { id: string };
   let carrierAId: string;
   let carrierBId: string;
@@ -79,51 +83,62 @@ describe("Vendor Order editing (Fase 8)", () => {
 
   const ctx = () => ({ userId: actor.id, ipAddress: "127.0.0.1", userAgent: "vitest" });
 
-  async function createOrder(suffix: string, overrides: Partial<VendorOrderOperationalFields> = {}) {
-    const fields: VendorOrderOperationalFields = {
+  function defaultFields(overrides: Partial<VendorOrderOperationalFields> = {}): VendorOrderOperationalFields {
+    return {
       orderDate: new Date("2026-01-01"),
-      confirmationDeadline: new Date("2026-01-10"),
-      deliveryDeadline: null,
       carrierId: carrierAId,
       modeId: modeAId,
+      tracking: null,
+      deliveryDate: null,
+      pickUpDate: null,
+      shipmentDate: null,
       invoiceNumber: 100,
-      cartonLabels: false,
-      bol: false,
-      palletLabels: false,
-      upsLabels: false,
-      ontracLabels: false,
-      amzx: false,
-      asn: false,
+      cartonLabels: null,
+      bol: null,
+      palletLabels: null,
+      asn: null,
+      carrierLabels: null,
+      carrierLabelType: null,
+      packingSlip: null,
       ...overrides,
     };
+  }
 
+  async function createOrder(suffix: string, overrides: Partial<VendorOrderOperationalFields> = {}) {
+    const fields = defaultFields(overrides);
     const order = await prisma.vendorOrder.create({
-      data: { orderNumber: `${ORDER_PREFIX}${suffix}`, status: "PENDING", ...fields },
+      data: {
+        orderNumber: `${ORDER_PREFIX}${suffix}`,
+        status: "PENDING",
+        ...fields,
+        // Reproduce lo que createVendorOrder haría realmente: las deadlines
+        // siempre calculadas a partir de orderDate, nunca null en una orden
+        // ya existente. Así el fixture no genera un diff artificial al editar.
+        confirmationDeadline: computeConfirmationDeadline(fields.orderDate),
+        deliveryDeadline: computeDeliveryDeadline(fields.orderDate),
+      },
     });
     createdOrderIds.push(order.id);
     return order;
   }
 
-  it("edita los campos operativos permitidos", async () => {
+  it("edita los campos operativos permitidos, incluyendo Tracking", async () => {
     const order = await createOrder("1");
 
     const result = await editVendorOrder(
       order.id,
-      {
-        orderDate: order.orderDate,
-        confirmationDeadline: order.confirmationDeadline,
-        deliveryDeadline: new Date("2026-02-01"),
+      defaultFields({
+        deliveryDate: new Date("2026-02-01"),
+        pickUpDate: new Date("2026-01-30"),
+        shipmentDate: new Date("2026-01-29"),
         carrierId: carrierBId,
         modeId: modeBId,
+        tracking: "1Z999AA10123456784",
         invoiceNumber: 999,
         cartonLabels: true,
         bol: true,
-        palletLabels: false,
-        upsLabels: false,
-        ontracLabels: false,
-        amzx: false,
-        asn: false,
-      },
+        packingSlip: true,
+      }),
       ctx(),
     );
 
@@ -131,9 +146,30 @@ describe("Vendor Order editing (Fase 8)", () => {
     if (!result.ok) return;
     expect(result.order.carrierId).toBe(carrierBId);
     expect(result.order.modeId).toBe(modeBId);
+    expect(result.order.tracking).toBe("1Z999AA10123456784");
     expect(result.order.invoiceNumber).toBe(999);
     expect(result.order.cartonLabels).toBe(true);
-    expect(result.order.deliveryDeadline?.toISOString()).toBe(new Date("2026-02-01").toISOString());
+    expect(result.order.packingSlip).toBe(true);
+    expect(result.order.deliveryDate?.toISOString()).toBe(new Date("2026-02-01").toISOString());
+  });
+
+  it("Confirmation/Delivery Deadline se recalculan cuando cambia Order Date en un edit", async () => {
+    const order = await createOrder("ORDER-DATE-RECALC");
+
+    const result = await editVendorOrder(
+      order.id,
+      defaultFields({
+        orderDate: new Date("2026-03-05T00:00:00.000Z"),
+        carrierId: order.carrierId!,
+        modeId: order.modeId!,
+      }),
+      ctx(),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.order.confirmationDeadline?.toISOString()).toBe("2026-03-07T00:00:00.000Z");
+    expect(result.order.deliveryDeadline?.toISOString()).toBe("2026-03-09T00:00:00.000Z");
   });
 
   it("nunca modifica status, confirmedAt, rejectedAt ni deliveredAt", async () => {
@@ -151,21 +187,7 @@ describe("Vendor Order editing (Fase 8)", () => {
 
     const result = await editVendorOrder(
       order.id,
-      {
-        orderDate: order.orderDate,
-        confirmationDeadline: null,
-        deliveryDeadline: null,
-        carrierId: carrierAId,
-        modeId: modeAId,
-        invoiceNumber: 555,
-        cartonLabels: true,
-        bol: false,
-        palletLabels: false,
-        upsLabels: false,
-        ontracLabels: false,
-        amzx: false,
-        asn: false,
-      },
+      defaultFields({ invoiceNumber: 555, cartonLabels: true }),
       ctx(),
     );
 
@@ -177,26 +199,18 @@ describe("Vendor Order editing (Fase 8)", () => {
     expect(result.order.deliveredAt).toBeNull();
   });
 
-  it("registra un AuditLog VENDOR_ORDER_UPDATED con diff-only (no dump completo)", async () => {
-    const order = await createOrder("3", { invoiceNumber: 100, cartonLabels: false });
+  it("registra un AuditLog VENDOR_ORDER_UPDATED con diff-only (no dump completo), incluye tracking cuando cambia", async () => {
+    const order = await createOrder("3", { invoiceNumber: 100, cartonLabels: false, tracking: "OLD-TRACK" });
 
     const result = await editVendorOrder(
       order.id,
-      {
-        orderDate: order.orderDate,
-        confirmationDeadline: order.confirmationDeadline,
-        deliveryDeadline: order.deliveryDeadline,
+      defaultFields({
         carrierId: order.carrierId!,
         modeId: order.modeId!,
+        tracking: "NEW-TRACK",
         invoiceNumber: 777,
         cartonLabels: true,
-        bol: order.bol,
-        palletLabels: order.palletLabels,
-        upsLabels: order.upsLabels,
-        ontracLabels: order.ontracLabels,
-        amzx: order.amzx,
-        asn: order.asn,
-      },
+      }),
       ctx(),
     );
     expect(result.ok).toBe(true);
@@ -205,8 +219,8 @@ describe("Vendor Order editing (Fase 8)", () => {
       where: { entityType: "VendorOrder", entityId: order.id, action: "VENDOR_ORDER_UPDATED" },
     });
     expect(log).toBeTruthy();
-    expect(log?.oldValues).toEqual({ invoiceNumber: 100, cartonLabels: false });
-    expect(log?.newValues).toEqual({ invoiceNumber: 777, cartonLabels: true });
+    expect(log?.oldValues).toEqual({ invoiceNumber: 100, cartonLabels: false, tracking: "OLD-TRACK" });
+    expect(log?.newValues).toEqual({ invoiceNumber: 777, cartonLabels: true, tracking: "NEW-TRACK" });
   });
 
   it("sin cambios reales: no crea AuditLog", async () => {
@@ -216,21 +230,11 @@ describe("Vendor Order editing (Fase 8)", () => {
 
     const result = await editVendorOrder(
       order.id,
-      {
-        orderDate: order.orderDate,
-        confirmationDeadline: order.confirmationDeadline,
-        deliveryDeadline: order.deliveryDeadline,
+      defaultFields({
         carrierId: order.carrierId!,
         modeId: order.modeId!,
         invoiceNumber: order.invoiceNumber,
-        cartonLabels: order.cartonLabels,
-        bol: order.bol,
-        palletLabels: order.palletLabels,
-        upsLabels: order.upsLabels,
-        ontracLabels: order.ontracLabels,
-        amzx: order.amzx,
-        asn: order.asn,
-      },
+      }),
       ctx(),
     );
     expect(result.ok).toBe(true);
@@ -244,21 +248,7 @@ describe("Vendor Order editing (Fase 8)", () => {
 
     await editVendorOrder(
       order.id,
-      {
-        orderDate: order.orderDate,
-        confirmationDeadline: order.confirmationDeadline,
-        deliveryDeadline: order.deliveryDeadline,
-        carrierId: order.carrierId!,
-        modeId: order.modeId!,
-        invoiceNumber: 321,
-        cartonLabels: true,
-        bol: order.bol,
-        palletLabels: order.palletLabels,
-        upsLabels: order.upsLabels,
-        ontracLabels: order.ontracLabels,
-        amzx: order.amzx,
-        asn: order.asn,
-      },
+      defaultFields({ carrierId: order.carrierId!, modeId: order.modeId!, invoiceNumber: 321, cartonLabels: true }),
       ctx(),
     );
 
@@ -271,21 +261,7 @@ describe("Vendor Order editing (Fase 8)", () => {
 
     const result = await editVendorOrder(
       order.id,
-      {
-        orderDate: order.orderDate,
-        confirmationDeadline: order.confirmationDeadline,
-        deliveryDeadline: order.deliveryDeadline,
-        carrierId: inactiveCarrierId,
-        modeId: order.modeId!,
-        invoiceNumber: order.invoiceNumber,
-        cartonLabels: order.cartonLabels,
-        bol: order.bol,
-        palletLabels: order.palletLabels,
-        upsLabels: order.upsLabels,
-        ontracLabels: order.ontracLabels,
-        amzx: order.amzx,
-        asn: order.asn,
-      },
+      defaultFields({ carrierId: inactiveCarrierId, modeId: order.modeId! }),
       ctx(),
     );
 
@@ -297,21 +273,7 @@ describe("Vendor Order editing (Fase 8)", () => {
 
     const result = await editVendorOrder(
       order.id,
-      {
-        orderDate: order.orderDate,
-        confirmationDeadline: order.confirmationDeadline,
-        deliveryDeadline: order.deliveryDeadline,
-        carrierId: inactiveCarrierId,
-        modeId: order.modeId!,
-        invoiceNumber: 888,
-        cartonLabels: order.cartonLabels,
-        bol: order.bol,
-        palletLabels: order.palletLabels,
-        upsLabels: order.upsLabels,
-        ontracLabels: order.ontracLabels,
-        amzx: order.amzx,
-        asn: order.asn,
-      },
+      defaultFields({ carrierId: inactiveCarrierId, modeId: order.modeId!, invoiceNumber: 888 }),
       ctx(),
     );
 
@@ -319,24 +281,76 @@ describe("Vendor Order editing (Fase 8)", () => {
     if (result.ok) expect(result.order.invoiceNumber).toBe(888);
   });
 
+  it("rechaza una combinación inconsistente de Carrier Labels/BOL con CHECKLIST_INVALID, sin persistir el cambio", async () => {
+    const order = await createOrder("8", { invoiceNumber: 1 });
+
+    const result = await editVendorOrder(
+      order.id,
+      defaultFields({ carrierId: order.carrierId!, modeId: order.modeId!, invoiceNumber: 2, carrierLabels: false, bol: false }),
+      ctx(),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "CHECKLIST_INVALID",
+      issues: expect.arrayContaining(["BOL"]),
+    });
+
+    const persisted = await prisma.vendorOrder.findUniqueOrThrow({ where: { id: order.id } });
+    expect(persisted.invoiceNumber).toBe(1);
+  });
+
+  it("acepta editar Tracking a un valor alfanumérico con guiones", async () => {
+    const order = await createOrder("9");
+
+    const result = await editVendorOrder(
+      order.id,
+      defaultFields({ carrierId: order.carrierId!, modeId: order.modeId!, tracking: "ONTRAC-123456789" }),
+      ctx(),
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.order.tracking).toBe("ONTRAC-123456789");
+  });
+
+  it("permite asignar carrier/mode más tarde a una orden creada sin ellos", async () => {
+    const order = await createOrder("NO-CARRIER-MODE", { carrierId: null, modeId: null });
+    expect(order.carrierId).toBeNull();
+    expect(order.modeId).toBeNull();
+
+    const result = await editVendorOrder(
+      order.id,
+      defaultFields({ carrierId: carrierAId, modeId: modeAId, invoiceNumber: 1234 }),
+      ctx(),
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.order.carrierId).toBe(carrierAId);
+      expect(result.order.modeId).toBe(modeAId);
+    }
+  });
+
+  it("permite dejar carrier/mode en null al editar (siguen siendo opcionales)", async () => {
+    const order = await createOrder("UNSET-CARRIER-MODE");
+
+    const result = await editVendorOrder(
+      order.id,
+      defaultFields({ carrierId: null, modeId: null, invoiceNumber: 4321 }),
+      ctx(),
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.order.carrierId).toBeNull();
+      expect(result.order.modeId).toBeNull();
+    }
+  });
+
   it("devuelve NOT_FOUND para una orden inexistente", async () => {
     const result = await editVendorOrder(
       "does-not-exist",
-      {
-        orderDate: new Date(),
-        confirmationDeadline: null,
-        deliveryDeadline: null,
-        carrierId: carrierAId,
-        modeId: modeAId,
-        invoiceNumber: null,
-        cartonLabels: false,
-        bol: false,
-        palletLabels: false,
-        upsLabels: false,
-        ontracLabels: false,
-        amzx: false,
-        asn: false,
-      },
+      defaultFields({ carrierId: carrierAId, modeId: modeAId, invoiceNumber: null }),
       ctx(),
     );
 

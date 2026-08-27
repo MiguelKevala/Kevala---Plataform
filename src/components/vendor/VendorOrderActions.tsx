@@ -11,6 +11,10 @@ export interface VendorOrderActionsProps {
   canConfirm: boolean;
   canReject: boolean;
   canDeliver: boolean;
+  /** Campos del Shipping Checklist que faltan para poder entregar (calculado
+   * en el servidor con la misma validación centralizada que usa el backend
+   * en deliverVendorOrder). Vacío = la orden está lista para DELIVERED. */
+  deliveryMissingFields: string[];
 }
 
 type ActiveModal = "confirm" | "reject" | "deliver" | null;
@@ -24,6 +28,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   NOT_FOUND: "This order no longer exists.",
   CONFLICT: "This order already changed status. Refresh the page and try again.",
   VALIDATION_ERROR: "Please review the entered information.",
+  INCOMPLETE: "Order cannot be delivered. Complete the required shipping information first.",
 };
 
 export function VendorOrderActions({
@@ -32,6 +37,7 @@ export function VendorOrderActions({
   canConfirm,
   canReject,
   canDeliver,
+  deliveryMissingFields,
 }: VendorOrderActionsProps) {
   const router = useRouter();
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
@@ -40,6 +46,7 @@ export function VendorOrderActions({
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [incompleteFields, setIncompleteFields] = useState<string[]>([]);
 
   function closeModal() {
     if (loading) return;
@@ -52,6 +59,7 @@ export function VendorOrderActions({
   async function runAction(path: "confirm" | "reject" | "deliver", body?: unknown) {
     setLoading(true);
     setError(null);
+    setIncompleteFields([]);
 
     try {
       const response = await fetch(`/api/vendor/ordenes/${orderId}/${path}`, {
@@ -63,6 +71,9 @@ export function VendorOrderActions({
       if (!response.ok) {
         const data = await response.json().catch(() => null);
         setError(ERROR_MESSAGES[data?.error] ?? "Could not complete this action.");
+        if (data?.error === "INCOMPLETE" && Array.isArray(data?.missingFields)) {
+          setIncompleteFields(data.missingFields);
+        }
         return;
       }
 
@@ -88,6 +99,7 @@ export function VendorOrderActions({
   const showConfirm = status === "PENDING" && canConfirm;
   const showReject = status === "PENDING" && canReject;
   const showDeliver = status === "CONFIRMED" && canDeliver;
+  const isDeliveryReady = deliveryMissingFields.length === 0;
 
   if (!showConfirm && !showReject && !showDeliver) {
     return null;
@@ -107,14 +119,38 @@ export function VendorOrderActions({
           </Button>
         )}
         {showDeliver && (
-          <Button size="sm" onClick={() => setActiveModal("deliver")}>
+          <Button
+            size="sm"
+            disabled={!isDeliveryReady}
+            title={isDeliveryReady ? undefined : "Complete the required shipping information first."}
+            onClick={() => setActiveModal("deliver")}
+          >
             Mark as Delivered
           </Button>
         )}
       </div>
 
+      {showDeliver && !isDeliveryReady && (
+        <div className="w-full rounded-md border border-amber-200 bg-amber-50 p-3 text-right text-sm text-amber-900">
+          <p className="font-medium">
+            Order cannot be delivered. Complete the required shipping information first.
+          </p>
+          <ul className="mt-1 list-inside list-disc text-amber-800">
+            {deliveryMissingFields.map((field) => (
+              <li key={field}>{field}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {error && (
-        <Toast variant="danger" title={error} onDismiss={() => setError(null)} className="w-full" />
+        <Toast
+          variant="danger"
+          title={error}
+          message={incompleteFields.length > 0 ? `Missing: ${incompleteFields.join(", ")}` : undefined}
+          onDismiss={() => setError(null)}
+          className="w-full"
+        />
       )}
 
       {showConfirm && (

@@ -7,6 +7,7 @@ import {
   type VendorOrderNotificationEvent,
 } from "@/modules/notifications/content";
 import { createNotifications } from "@/modules/notifications/service/create-notification";
+import { validateShippingChecklistCompleteness } from "../domain/shipping-checklist";
 
 export interface VendorOrderActionContext {
   userId: string;
@@ -183,10 +184,31 @@ export async function rejectVendorOrder(
   });
 }
 
+export type DeliverVendorOrderResult =
+  | VendorOrderActionResult
+  | { ok: false; error: "INCOMPLETE"; missingFields: string[] };
+
 export async function deliverVendorOrder(
   orderId: string,
   context: VendorOrderActionContext,
-): Promise<VendorOrderActionResult> {
+): Promise<DeliverVendorOrderResult> {
+  const order = await prisma.vendorOrder.findUnique({ where: { id: orderId } });
+  if (!order) {
+    return { ok: false, error: "NOT_FOUND" };
+  }
+
+  // La validación de status (from CONFIRMED) tiene prioridad: si la orden ni
+  // siquiera está CONFIRMED, el error correcto es CONFLICT (igual que antes),
+  // no INCOMPLETE. La completitud del checklist solo se exige una vez que la
+  // transición de estado en sí sería válida (Fase 8.1 §6-7). Nunca confiar
+  // solo en la UI.
+  if (order.status === "CONFIRMED") {
+    const missingFields = validateShippingChecklistCompleteness(order);
+    if (missingFields.length > 0) {
+      return { ok: false, error: "INCOMPLETE", missingFields };
+    }
+  }
+
   return runVendorOrderTransition({
     orderId,
     from: "CONFIRMED",

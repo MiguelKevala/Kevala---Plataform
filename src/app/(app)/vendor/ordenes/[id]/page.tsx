@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button, Card, CardContent, CardHeader, CardTitle, Checkbox } from "@/components/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { VendorOrderActions, VendorStatusBadge } from "@/components/vendor";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { getCurrentSession } from "@/modules/auth/get-session";
@@ -8,20 +8,28 @@ import { getUserPermissions } from "@/modules/rbac/get-user-permissions";
 import { PERMISSIONS, type PermissionKey } from "@/modules/rbac/permissions";
 import { getVendorOrderWithHistory } from "@/modules/vendor/repository/vendor-order.repository";
 import { VENDOR_ORDER_STATUS_LABELS } from "@/modules/vendor/status";
+import { validateShippingChecklistCompleteness } from "@/modules/vendor/domain/shipping-checklist";
 
 interface VendorOrderDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
-const CHECKLIST_ITEMS: Array<{ key: "cartonLabels" | "bol" | "palletLabels" | "upsLabels" | "ontracLabels" | "amzx" | "asn"; label: string }> = [
+const BINARY_CHECKLIST_ITEMS: Array<{
+  key: "cartonLabels" | "bol" | "palletLabels" | "asn" | "packingSlip";
+  label: string;
+}> = [
   { key: "cartonLabels", label: "Carton Labels" },
   { key: "bol", label: "BOL" },
   { key: "palletLabels", label: "Pallet Labels" },
-  { key: "upsLabels", label: "UPS Labels" },
-  { key: "ontracLabels", label: "OnTrac Labels" },
-  { key: "amzx", label: "AMZX" },
   { key: "asn", label: "ASN" },
+  { key: "packingSlip", label: "Packing Slip" },
 ];
+
+function formatYesNo(value: boolean | null): string {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "Not captured";
+}
 
 export default async function VendorOrderDetailPage({ params }: VendorOrderDetailPageProps) {
   const { id } = await params;
@@ -41,6 +49,9 @@ export default async function VendorOrderDetailPage({ params }: VendorOrderDetai
       ? order.statusHistory.find((entry) => entry.newStatus === "REJECTED")
       : undefined;
 
+  const deliveryMissingFields =
+    order.status === "CONFIRMED" ? validateShippingChecklistCompleteness(order) : [];
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -55,6 +66,7 @@ export default async function VendorOrderDetailPage({ params }: VendorOrderDetai
             canConfirm={permissions.has(PERMISSIONS.VENDOR_ORDERS_CONFIRM)}
             canReject={permissions.has(PERMISSIONS.VENDOR_ORDERS_REJECT)}
             canDeliver={permissions.has(PERMISSIONS.VENDOR_ORDERS_DELIVER)}
+            deliveryMissingFields={deliveryMissingFields}
           />
           {permissions.has(PERMISSIONS.VENDOR_ORDERS_EDIT) && (
             <Link href={`/vendor/ordenes/${order.id}/edit`}>
@@ -82,6 +94,10 @@ export default async function VendorOrderDetailPage({ params }: VendorOrderDetai
               <dd className="text-sm font-medium text-neutral-900">{order.orderNumber}</dd>
             </div>
             <div>
+              <dt className="text-sm text-neutral-500">Tracking</dt>
+              <dd className="text-sm font-medium text-neutral-900">{order.tracking ?? "—"}</dd>
+            </div>
+            <div>
               <dt className="text-sm text-neutral-500">Status</dt>
               <dd className="text-sm font-medium text-neutral-900">
                 {VENDOR_ORDER_STATUS_LABELS[order.status]}
@@ -102,12 +118,24 @@ export default async function VendorOrderDetailPage({ params }: VendorOrderDetai
               <dd className="text-sm font-medium text-neutral-900">{formatDate(order.deliveryDeadline)}</dd>
             </div>
             <div>
+              <dt className="text-sm text-neutral-500">Delivery Date</dt>
+              <dd className="text-sm font-medium text-neutral-900">{formatDate(order.deliveryDate)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-neutral-500">Pick Up Date</dt>
+              <dd className="text-sm font-medium text-neutral-900">{formatDate(order.pickUpDate)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-neutral-500">Shipment Date</dt>
+              <dd className="text-sm font-medium text-neutral-900">{formatDate(order.shipmentDate)}</dd>
+            </div>
+            <div>
               <dt className="text-sm text-neutral-500">Carrier</dt>
-              <dd className="text-sm font-medium text-neutral-900">{order.carrier?.name ?? "—"}</dd>
+              <dd className="text-sm font-medium text-neutral-900">{order.carrier?.name ?? "Not assigned"}</dd>
             </div>
             <div>
               <dt className="text-sm text-neutral-500">Mode</dt>
-              <dd className="text-sm font-medium text-neutral-900">{order.mode?.name ?? "—"}</dd>
+              <dd className="text-sm font-medium text-neutral-900">{order.mode?.name ?? "Not assigned"}</dd>
             </div>
             {(order.status === "CONFIRMED" || order.status === "DELIVERED") && (
               <div>
@@ -134,15 +162,28 @@ export default async function VendorOrderDetailPage({ params }: VendorOrderDetai
           <CardTitle>Shipping Checklist</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {CHECKLIST_ITEMS.map((item) => (
-              <Checkbox key={item.key} label={item.label} checked={order[item.key]} disabled />
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {BINARY_CHECKLIST_ITEMS.map((item) => (
+              <div key={item.key}>
+                <dt className="text-sm text-neutral-500">{item.label}</dt>
+                <dd className="text-sm font-medium text-neutral-900">{formatYesNo(order[item.key])}</dd>
+              </div>
             ))}
-          </div>
-          <div className="mt-4">
-            <dt className="text-sm text-neutral-500">Invoice #</dt>
-            <dd className="text-sm font-medium text-neutral-900">{order.invoiceNumber ?? "—"}</dd>
-          </div>
+            <div>
+              <dt className="text-sm text-neutral-500">Carrier Labels</dt>
+              <dd className="text-sm font-medium text-neutral-900">{formatYesNo(order.carrierLabels)}</dd>
+            </div>
+            {order.carrierLabels === true && (
+              <div>
+                <dt className="text-sm text-neutral-500">Carrier Label Type</dt>
+                <dd className="text-sm font-medium text-neutral-900">{order.carrierLabelType ?? "—"}</dd>
+              </div>
+            )}
+            <div>
+              <dt className="text-sm text-neutral-500">Invoice #</dt>
+              <dd className="text-sm font-medium text-neutral-900">{order.invoiceNumber ?? "—"}</dd>
+            </div>
+          </dl>
         </CardContent>
       </Card>
 

@@ -57,18 +57,20 @@ export default async function EditVendorOrderPage({ params }: EditVendorOrderPag
         initialValues={{
           orderNumber: order.orderNumber,
           orderDate: toDateInputValue(order.orderDate),
-          confirmationDeadline: toDateInputValue(order.confirmationDeadline),
-          deliveryDeadline: toDateInputValue(order.deliveryDeadline),
-          carrierId: order.carrierId ?? carriers[0]?.id ?? "",
-          modeId: order.modeId ?? modes[0]?.id ?? "",
+          carrierId: order.carrierId ?? "",
+          modeId: order.modeId ?? "",
+          tracking: order.tracking ?? "",
+          deliveryDate: toDateInputValue(order.deliveryDate),
+          pickUpDate: toDateInputValue(order.pickUpDate),
+          shipmentDate: toDateInputValue(order.shipmentDate),
           invoiceNumber: order.invoiceNumber === null ? "" : String(order.invoiceNumber),
           cartonLabels: order.cartonLabels,
           bol: order.bol,
           palletLabels: order.palletLabels,
-          amzx: order.amzx,
-          upsLabels: order.upsLabels,
-          ontracLabels: order.ontracLabels,
           asn: order.asn,
+          carrierLabels: order.carrierLabels,
+          carrierLabelType: order.carrierLabelType,
+          packingSlip: order.packingSlip,
         }}
       />
     </div>

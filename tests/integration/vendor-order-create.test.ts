@@ -87,18 +87,20 @@ describe("Vendor Order creation (Fase 8)", () => {
     return {
       orderNumber,
       orderDate: new Date("2026-01-01"),
-      confirmationDeadline: new Date("2026-01-10"),
-      deliveryDeadline: null,
       carrierId: activeCarrierId,
       modeId: activeModeId,
+      tracking: "1Z999AA10123456784",
+      deliveryDate: null,
+      pickUpDate: null,
+      shipmentDate: null,
       invoiceNumber: 1042,
       cartonLabels: true,
       bol: false,
       palletLabels: true,
-      upsLabels: false,
-      ontracLabels: false,
-      amzx: true,
       asn: false,
+      carrierLabels: true,
+      carrierLabelType: "AMZX",
+      packingSlip: null,
     };
   }
 
@@ -113,10 +115,43 @@ describe("Vendor Order creation (Fase 8)", () => {
     expect(result.order.status).toBe("PENDING");
     expect(result.order.carrierId).toBe(activeCarrierId);
     expect(result.order.modeId).toBe(activeModeId);
+    expect(result.order.tracking).toBe("1Z999AA10123456784");
     expect(result.order.invoiceNumber).toBe(1042);
     expect(result.order.cartonLabels).toBe(true);
     expect(result.order.bol).toBe(false);
-    expect(result.order.amzx).toBe(true);
+    expect(result.order.carrierLabels).toBe(true);
+    expect(result.order.carrierLabelType).toBe("AMZX");
+  });
+
+  it("acepta Tracking alfanumérico con letras, números y guiones", async () => {
+    for (const [suffix, tracking] of [
+      ["TRACK-LETTERS", "ABCDEFG"],
+      ["TRACK-NUMBERS", "123456789"],
+      ["TRACK-MIXED", "TBA123456789"],
+      ["TRACK-HYPHEN", "AMZ-123456789"],
+    ] as const) {
+      const result = await createVendorOrder(
+        { ...baseInput(`${ORDER_PREFIX}${suffix}`), tracking },
+        ctx(),
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        createdOrderIds.push(result.order.id);
+        expect(result.order.tracking).toBe(tracking);
+      }
+    }
+  });
+
+  it("Tracking es opcional (null) al crear", async () => {
+    const result = await createVendorOrder(
+      { ...baseInput(`${ORDER_PREFIX}NO-TRACKING`), tracking: null },
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      createdOrderIds.push(result.order.id);
+      expect(result.order.tracking).toBeNull();
+    }
   });
 
   it("crea el VendorOrderStatusHistory inicial (previousStatus null -> PENDING)", async () => {
@@ -149,15 +184,41 @@ describe("Vendor Order creation (Fase 8)", () => {
     expect((log?.newValues as Record<string, unknown>)?.carrierId).toBe(activeCarrierId);
   });
 
-  it("checklist nace en false cuando no se envía true explícitamente", async () => {
-    const input = { ...baseInput(`${ORDER_PREFIX}4`), cartonLabels: false, bol: false, palletLabels: false, upsLabels: false, ontracLabels: false, amzx: false, asn: false };
+  it("el checklist puede quedar sin capturar (null), distinto de false", async () => {
+    const input: CreateVendorOrderInput = {
+      ...baseInput(`${ORDER_PREFIX}4`),
+      cartonLabels: null,
+      bol: null,
+      palletLabels: null,
+      asn: null,
+      carrierLabels: null,
+      carrierLabelType: null,
+    };
     const result = await createVendorOrder(input, ctx());
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     createdOrderIds.push(result.order.id);
 
-    expect(result.order.cartonLabels).toBe(false);
-    expect(result.order.asn).toBe(false);
+    expect(result.order.cartonLabels).toBeNull();
+    expect(result.order.bol).toBeNull();
+    expect(result.order.palletLabels).toBeNull();
+    expect(result.order.asn).toBeNull();
+    expect(result.order.carrierLabels).toBeNull();
+  });
+
+  it("rechaza una combinación inconsistente de Carrier Labels/BOL con CHECKLIST_INVALID", async () => {
+    const result = await createVendorOrder(
+      { ...baseInput(`${ORDER_PREFIX}INVALID-CHECKLIST`), carrierLabels: false, carrierLabelType: null, bol: false },
+      ctx(),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe("CHECKLIST_INVALID");
+
+    const order = await prisma.vendorOrder.findUnique({
+      where: { orderNumber: `${ORDER_PREFIX}INVALID-CHECKLIST` },
+    });
+    expect(order).toBeNull();
   });
 
   it("invoiceNumber es opcional (null)", async () => {
@@ -212,5 +273,61 @@ describe("Vendor Order creation (Fase 8)", () => {
       ctx(),
     );
     expect(result).toEqual({ ok: false, error: "MODE_NOT_FOUND" });
+  });
+
+  it("crea la orden sin carrier (carrierId null) -> PENDING, carrierId null", async () => {
+    const result = await createVendorOrder(
+      { ...baseInput(`${ORDER_PREFIX}NO-CARRIER-OK`), carrierId: null },
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    createdOrderIds.push(result.order.id);
+    expect(result.order.carrierId).toBeNull();
+  });
+
+  it("crea la orden sin mode (modeId null) -> PENDING, modeId null", async () => {
+    const result = await createVendorOrder(
+      { ...baseInput(`${ORDER_PREFIX}NO-MODE-OK`), modeId: null },
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    createdOrderIds.push(result.order.id);
+    expect(result.order.modeId).toBeNull();
+  });
+
+  it("crea la orden sin carrier ni mode (ambos null)", async () => {
+    const result = await createVendorOrder(
+      { ...baseInput(`${ORDER_PREFIX}NO-CARRIER-NO-MODE`), carrierId: null, modeId: null },
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    createdOrderIds.push(result.order.id);
+    expect(result.order.carrierId).toBeNull();
+    expect(result.order.modeId).toBeNull();
+  });
+
+  it("Confirmation Deadline se calcula automáticamente como Order Date + 2 días", async () => {
+    const result = await createVendorOrder(
+      { ...baseInput(`${ORDER_PREFIX}DEADLINE-CONF`), orderDate: new Date("2026-02-10T00:00:00.000Z") },
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    createdOrderIds.push(result.order.id);
+    expect(result.order.confirmationDeadline?.toISOString()).toBe("2026-02-12T00:00:00.000Z");
+  });
+
+  it("Delivery Deadline se calcula automáticamente como Order Date + 4 días", async () => {
+    const result = await createVendorOrder(
+      { ...baseInput(`${ORDER_PREFIX}DEADLINE-DEL`), orderDate: new Date("2026-02-10T00:00:00.000Z") },
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    createdOrderIds.push(result.order.id);
+    expect(result.order.deliveryDeadline?.toISOString()).toBe("2026-02-14T00:00:00.000Z");
   });
 });

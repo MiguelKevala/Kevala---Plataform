@@ -154,14 +154,25 @@ model VendorOrder {
   carrierId String? @map("carrier_id")
   modeId    String? @map("mode_id")
 
-  cartonLabels  Boolean @default(false) @map("carton_labels")
-  bol           Boolean @default(false)
-  palletLabels  Boolean @default(false) @map("pallet_labels")
-  upsLabels     Boolean @default(false) @map("ups_labels")
-  ontracLabels  Boolean @default(false) @map("ontrac_labels")
-  amzx          Boolean @default(false)
-  asn           Boolean @default(false)
-  invoiceNumber Int? @map("invoice_number")
+  // Shipping checklist (Fase 8.1): booleanos nullable a propósito. null =
+  // todavía no capturado, distinto de false = "No" explícito. Ver
+  // src/modules/vendor/domain/shipping-checklist.ts para las reglas de
+  // consistencia/completitud que gobiernan estos campos.
+  tracking         String?   @map("tracking")
+  // Fechas operativas reales (distintas de las deadlines, que son fechas
+  // máximas calculadas). Nullable: una orden nueva aún no fue shipped/picked
+  // up/entregada. Nunca se calculan automáticamente — las captura el usuario.
+  deliveryDate     DateTime? @map("delivery_date")
+  pickUpDate       DateTime? @map("pick_up_date")
+  shipmentDate     DateTime? @map("shipment_date")
+  cartonLabels     Boolean?  @map("carton_labels")
+  bol              Boolean?
+  palletLabels     Boolean?  @map("pallet_labels")
+  asn              Boolean?
+  carrierLabels    Boolean?  @map("carrier_labels")
+  carrierLabelType String?   @map("carrier_label_type")
+  packingSlip      Boolean?  @map("packing_slip")
+  invoiceNumber    Int?      @map("invoice_number")
 
   statusHistory VendorOrderStatusHistory[]
   carrier       Carrier?                    @relation(fields: [carrierId], references: [id], onDelete: Restrict)

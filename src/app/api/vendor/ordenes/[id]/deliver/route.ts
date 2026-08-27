@@ -33,6 +33,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (result.error === "NOT_FOUND") {
       return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
     }
+    if (result.error === "INCOMPLETE") {
+      return NextResponse.json(
+        { error: "INCOMPLETE", missingFields: result.missingFields },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { error: "CONFLICT", currentStatus: result.currentStatus },
       { status: 409 },

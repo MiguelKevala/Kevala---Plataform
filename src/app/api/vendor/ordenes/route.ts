@@ -38,18 +38,20 @@ export async function POST(request: NextRequest) {
     {
       orderNumber: parsed.data.orderNumber,
       orderDate: parsed.data.orderDate,
-      confirmationDeadline: parsed.data.confirmationDeadline ?? null,
-      deliveryDeadline: parsed.data.deliveryDeadline ?? null,
-      carrierId: parsed.data.carrierId,
-      modeId: parsed.data.modeId,
+      carrierId: parsed.data.carrierId ?? null,
+      modeId: parsed.data.modeId ?? null,
+      tracking: parsed.data.tracking ?? null,
+      deliveryDate: parsed.data.deliveryDate ?? null,
+      pickUpDate: parsed.data.pickUpDate ?? null,
+      shipmentDate: parsed.data.shipmentDate ?? null,
       invoiceNumber: parsed.data.invoiceNumber ?? null,
-      cartonLabels: parsed.data.cartonLabels,
-      bol: parsed.data.bol,
-      palletLabels: parsed.data.palletLabels,
-      upsLabels: parsed.data.upsLabels,
-      ontracLabels: parsed.data.ontracLabels,
-      amzx: parsed.data.amzx,
-      asn: parsed.data.asn,
+      cartonLabels: parsed.data.cartonLabels ?? null,
+      bol: parsed.data.bol ?? null,
+      palletLabels: parsed.data.palletLabels ?? null,
+      asn: parsed.data.asn ?? null,
+      carrierLabels: parsed.data.carrierLabels ?? null,
+      carrierLabelType: parsed.data.carrierLabelType ?? null,
+      packingSlip: parsed.data.packingSlip ?? null,
     },
     {
       userId: session.user.id,
@@ -61,6 +63,9 @@ export async function POST(request: NextRequest) {
   if (!result.ok) {
     if (result.error === "DUPLICATE_ORDER_NUMBER") {
       return NextResponse.json({ error: result.error }, { status: 409 });
+    }
+    if (result.error === "CHECKLIST_INVALID") {
+      return NextResponse.json({ error: result.error, issues: result.issues }, { status: 400 });
     }
     return NextResponse.json({ error: result.error }, { status: CATALOG_ERROR_STATUS[result.error] });
   }

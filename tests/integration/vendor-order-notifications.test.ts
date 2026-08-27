@@ -7,6 +7,8 @@ import {
   rejectVendorOrder,
 } from "@/modules/vendor/services/vendor-order-actions.service";
 import * as createNotificationModule from "@/modules/notifications/service/create-notification";
+import { createCarrier } from "@/modules/carriers/service/carrier-crud.service";
+import { createMode } from "@/modules/modes/service/mode-crud.service";
 
 vi.mock("@/modules/notifications/service/create-notification", async (importOriginal) => {
   const actual =
@@ -16,8 +18,12 @@ vi.mock("@/modules/notifications/service/create-notification", async (importOrig
 
 const EMAIL_PREFIX = "vendor-notif-test";
 const ORDER_PREFIX = "VNOTIF-";
+const CARRIER_NAME = "TEST-VNOTIF-CARRIER";
+const MODE_NAME = "TEST-VNOTIF-MODE";
 
 const createdOrderIds: string[] = [];
+let carrierId: string;
+let modeId: string;
 
 async function createUser(suffix: string, opts: { roleName?: string; isActive?: boolean } = {}) {
   const user = await prisma.user.create({
@@ -43,7 +49,28 @@ async function createOrder(suffix: string, status: "PENDING" | "CONFIRMED" = "PE
       orderNumber: `${ORDER_PREFIX}${suffix}`,
       status,
       orderDate: new Date("2026-01-01"),
-      ...(status === "CONFIRMED" ? { confirmedAt: new Date("2026-01-02") } : {}),
+      // Fase 8.1: DELIVERED exige checklist completo y consistente, así que
+      // las órdenes CONFIRMED de este archivo ya nacen listas para entregar.
+      ...(status === "CONFIRMED"
+        ? {
+            confirmedAt: new Date("2026-01-02"),
+            carrierId,
+            modeId,
+            tracking: "1Z999AA10123456784",
+            confirmationDeadline: new Date("2026-01-03"),
+            deliveryDeadline: new Date("2026-01-05"),
+            deliveryDate: new Date("2026-01-04"),
+            pickUpDate: new Date("2026-01-02"),
+            shipmentDate: new Date("2026-01-01"),
+            invoiceNumber: 9001,
+            packingSlip: true,
+            cartonLabels: true,
+            bol: true,
+            palletLabels: true,
+            asn: true,
+            carrierLabels: false,
+          }
+        : {}),
     },
   });
   createdOrderIds.push(order.id);
@@ -59,6 +86,18 @@ async function cleanup() {
   await prisma.vendorOrder.deleteMany({ where: { orderNumber: { startsWith: ORDER_PREFIX } } });
   // Cascada: borrar los usuarios de prueba elimina también sus notifications/userRoles.
   await prisma.user.deleteMany({ where: { email: { startsWith: EMAIL_PREFIX } } });
+
+  const carrier = await prisma.carrier.findUnique({ where: { name: CARRIER_NAME } });
+  if (carrier) {
+    await prisma.auditLog.deleteMany({ where: { entityType: "Carrier", entityId: carrier.id } });
+    await prisma.carrier.delete({ where: { id: carrier.id } });
+  }
+  const mode = await prisma.mode.findUnique({ where: { name: MODE_NAME } });
+  if (mode) {
+    await prisma.auditLog.deleteMany({ where: { entityType: "Mode", entityId: mode.id } });
+    await prisma.mode.delete({ where: { id: mode.id } });
+  }
+
   createdOrderIds.length = 0;
 }
 
@@ -77,6 +116,12 @@ describe("Notificaciones de acciones Vendor (Fase 7)", () => {
       isActive: false,
     });
     userWithoutPermission = await createUser("no-permission");
+
+    const carrierCtx = { userId: actor.id, ipAddress: null, userAgent: null };
+    const carrier = await createCarrier(CARRIER_NAME, carrierCtx);
+    if (carrier.ok) carrierId = carrier.carrier.id;
+    const mode = await createMode(MODE_NAME, carrierCtx);
+    if (mode.ok) modeId = mode.mode.id;
   });
 
   afterAll(cleanup);
