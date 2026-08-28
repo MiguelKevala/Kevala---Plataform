@@ -19,6 +19,8 @@ const PERMISSIONS = [
   { key: "vendor.orders.edit", description: "Editar la información operativa de órdenes Vendor." },
   { key: "vendor.carriers.manage", description: "Administrar el catálogo de carriers (crear, editar, activar/desactivar)." },
   { key: "vendor.modes.manage", description: "Administrar el catálogo de modes (crear, editar, activar/desactivar)." },
+  { key: "products.view", description: "Ver el catálogo maestro de productos (Products / Catalog)." },
+  { key: "products.manage", description: "Crear, editar y eliminar productos del catálogo maestro." },
 ] as const;
 
 const ROLES: Array<{ name: string; description: string; permissions: readonly string[] }> = [
@@ -44,6 +46,8 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
       "vendor.orders.edit",
       "vendor.carriers.manage",
       "vendor.modes.manage",
+      "products.view",
+      "products.manage",
     ],
   },
   {
@@ -57,6 +61,7 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
       "vendor.orders.deliver",
       "vendor.orders.create",
       "vendor.orders.edit",
+      "products.view",
     ],
   },
   {
@@ -70,12 +75,13 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
       "vendor.orders.deliver",
       "vendor.orders.create",
       "vendor.orders.edit",
+      "products.view",
     ],
   },
   {
     name: "Viewer",
     description: "Rol de solo lectura. Acceso de lectura a Vendor.",
-    permissions: ["vendor.view", "vendor.orders.view"],
+    permissions: ["vendor.view", "vendor.orders.view", "products.view"],
   },
 ];
 

@@ -30,9 +30,16 @@ export interface SidebarProps {
   onToggle: () => void;
   canManageCarriers: boolean;
   canManageModes: boolean;
+  canViewProducts: boolean;
 }
 
-export function Sidebar({ collapsed, onToggle, canManageCarriers, canManageModes }: SidebarProps) {
+export function Sidebar({
+  collapsed,
+  onToggle,
+  canManageCarriers,
+  canManageModes,
+  canViewProducts,
+}: SidebarProps) {
   const settingsChildren: NavChild[] = [
     ...(canManageCarriers ? [{ label: "Carriers", href: "/settings/carriers" }] : []),
     ...(canManageModes ? [{ label: "Modes", href: "/settings/modes" }] : []),
@@ -52,7 +59,16 @@ export function Sidebar({ collapsed, onToggle, canManageCarriers, canManageModes
       ],
     },
     { label: "Inventory", icon: InventoryIcon },
-    { label: "Products", icon: ProductsIcon },
+    ...(canViewProducts
+      ? [
+          {
+            label: "Products",
+            href: "/products/catalog",
+            icon: ProductsIcon,
+            children: [{ label: "Catalog", href: "/products/catalog" }],
+          },
+        ]
+      : [{ label: "Products", icon: ProductsIcon }]),
     ...(settingsChildren.length > 0
       ? [
           {

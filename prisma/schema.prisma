@@ -238,6 +238,42 @@ model VendorOrderStatusHistory {
 // (dependen de reglas de deadline aún no aprobadas).
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Products: catálogo maestro de productos de KEVALA (nuevo módulo — por ahora
+// solo la sección Catalog). unitOfMeasurement es un enum de Prisma porque es
+// un conjunto cerrado y fijo de valores, no administrable desde el portal
+// (a diferencia de Carrier/Mode). Nunca se borra físicamente — soft delete
+// vía isActive, igual que Carrier/Mode — porque a futuro Marketing/Cosmo -
+// Algorithm se relacionará con Product mediante su id interno y un borrado
+// físico dejaría esas referencias huérfanas.
+// ---------------------------------------------------------------------------
+
+enum UnitOfMeasurement {
+  LB
+  Gal
+  Oz
+  Drum
+  Tote
+  Sticks
+
+  @@map("unit_of_measurement")
+}
+
+model Product {
+  id                String            @id @default(cuid())
+  sku               String            @unique
+  item              String
+  caseOf            Int               @map("case_of")
+  casesPerPallet    Int               @map("cases_per_pallet")
+  unitOfMeasurement UnitOfMeasurement @map("unit_of_measurement")
+  unit              Float
+  isActive          Boolean           @default(true) @map("is_active")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  @@map("products")
+}
+
 model Notification {
   id         String    @id @default(cuid())
   userId     String    @map("user_id")

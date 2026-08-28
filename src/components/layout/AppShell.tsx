@@ -9,9 +9,16 @@ export interface AppShellProps {
   userName: string;
   canManageCarriers: boolean;
   canManageModes: boolean;
+  canViewProducts: boolean;
 }
 
-export function AppShell({ children, userName, canManageCarriers, canManageModes }: AppShellProps) {
+export function AppShell({
+  children,
+  userName,
+  canManageCarriers,
+  canManageModes,
+  canViewProducts,
+}: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -21,6 +28,7 @@ export function AppShell({ children, userName, canManageCarriers, canManageModes
         onToggle={() => setCollapsed((value) => !value)}
         canManageCarriers={canManageCarriers}
         canManageModes={canManageModes}
+        canViewProducts={canViewProducts}
       />
       <div className="flex min-h-screen flex-1 flex-col">
         <Topbar userName={userName} />

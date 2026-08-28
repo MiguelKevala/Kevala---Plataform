@@ -13,6 +13,8 @@ export const PERMISSIONS = {
   VENDOR_ORDERS_EDIT: "vendor.orders.edit",
   VENDOR_CARRIERS_MANAGE: "vendor.carriers.manage",
   VENDOR_MODES_MANAGE: "vendor.modes.manage",
+  PRODUCTS_VIEW: "products.view",
+  PRODUCTS_MANAGE: "products.manage",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
