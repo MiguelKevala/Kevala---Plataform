@@ -11,15 +11,33 @@ export interface ProductActionContext {
 export type ProductActionResult =
   | { ok: true; product: Product }
   | { ok: false; error: "NOT_FOUND" }
-  | { ok: false; error: "DUPLICATE_SKU" };
+  | { ok: false; error: "DUPLICATE_SKU" }
+  | { ok: false; error: "DUPLICATE_ASIN" };
 
-function isUniqueConstraintViolation(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+/** Distingue qué columna violó la restricción UNIQUE (sku vs asin) a partir
+ * de `meta.target`, que según el driver puede venir como array de columnas
+ * o como el nombre del índice — se cubren ambos casos. */
+function uniqueConstraintViolationField(error: unknown): "sku" | "asin" | null {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+    return null;
+  }
+
+  const target = error.meta?.target;
+  const targetText = Array.isArray(target) ? target.join(",") : String(target ?? "");
+  // `meta.target` no siempre viene poblado según el adapter/versión de
+  // Postgres en uso; el nombre de la restricción (que sí identifica la
+  // columna, p.ej. "products_asin_key") siempre aparece en error.message.
+  const haystack = `${targetText} ${error.message}`;
+
+  if (haystack.includes("asin")) return "asin";
+  if (haystack.includes("sku")) return "sku";
+  return null;
 }
 
 const PRODUCT_FIELD_KEYS = [
   "sku",
   "item",
+  "asin",
   "caseOf",
   "casesPerPallet",
   "unitOfMeasurement",
@@ -52,7 +70,11 @@ export async function createProduct(
 
     return { ok: true, product };
   } catch (error) {
-    if (isUniqueConstraintViolation(error)) {
+    const conflictField = uniqueConstraintViolationField(error);
+    if (conflictField === "asin") {
+      return { ok: false, error: "DUPLICATE_ASIN" };
+    }
+    if (conflictField === "sku") {
       return { ok: false, error: "DUPLICATE_SKU" };
     }
     throw error;
@@ -69,8 +91,8 @@ export async function updateProduct(
     return { ok: false, error: "NOT_FOUND" };
   }
 
-  const oldValues: Record<string, string | number> = {};
-  const newValues: Record<string, string | number> = {};
+  const oldValues: Record<string, string | number | null> = {};
+  const newValues: Record<string, string | number | null> = {};
   for (const key of PRODUCT_FIELD_KEYS) {
     if (existing[key] !== input[key]) {
       oldValues[key] = existing[key];
@@ -105,7 +127,11 @@ export async function updateProduct(
 
     return { ok: true, product };
   } catch (error) {
-    if (isUniqueConstraintViolation(error)) {
+    const conflictField = uniqueConstraintViolationField(error);
+    if (conflictField === "asin") {
+      return { ok: false, error: "DUPLICATE_ASIN" };
+    }
+    if (conflictField === "sku") {
       return { ok: false, error: "DUPLICATE_SKU" };
     }
     throw error;

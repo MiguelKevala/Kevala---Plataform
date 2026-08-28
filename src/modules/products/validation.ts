@@ -6,6 +6,8 @@ export type UnitOfMeasurementValue = (typeof UNIT_OF_MEASUREMENT_VALUES)[number]
 const SKU_MAX_LENGTH = 50;
 const SKU_PATTERN = /^[A-Za-z0-9]+$/;
 const ITEM_MAX_LENGTH = 300;
+const ASIN_MAX_LENGTH = 32;
+const ASIN_PATTERN = /^[A-Za-z0-9]+$/;
 
 export const productInputSchema = z.object({
   sku: z
@@ -19,6 +21,15 @@ export const productInputSchema = z.object({
     .trim()
     .min(1, "Item is required.")
     .max(ITEM_MAX_LENGTH, `Item cannot exceed ${ITEM_MAX_LENGTH} characters.`),
+  // ASIN es un identificador independiente del SKU (el de Amazon). Igual que
+  // SKU: solo trim, sin normalización de mayúsculas/minúsculas — el catálogo
+  // no tiene esa convención para ningún otro identificador.
+  asin: z
+    .string()
+    .trim()
+    .min(1, "ASIN is required.")
+    .max(ASIN_MAX_LENGTH, `ASIN cannot exceed ${ASIN_MAX_LENGTH} characters.`)
+    .regex(ASIN_PATTERN, "ASIN may only contain letters and numbers."),
   caseOf: z
     .number()
     .finite("Case Of must be a valid number.")

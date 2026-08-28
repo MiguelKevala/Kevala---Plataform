@@ -34,6 +34,7 @@ export default async function ProductsCatalogPage({ searchParams }: ProductsCata
     id: product.id,
     sku: product.sku,
     item: product.item,
+    asin: product.asin,
     caseOf: product.caseOf,
     casesPerPallet: product.casesPerPallet,
     unitOfMeasurement: product.unitOfMeasurement,

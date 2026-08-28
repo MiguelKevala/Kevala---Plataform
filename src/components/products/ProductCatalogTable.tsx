@@ -22,6 +22,7 @@ export interface ProductListItem {
   id: string;
   sku: string;
   item: string;
+  asin: string | null;
   caseOf: number;
   casesPerPallet: number;
   unitOfMeasurement: UnitOfMeasurementValue;
@@ -40,6 +41,7 @@ export interface ProductCatalogTableProps {
 interface FormValues {
   sku: string;
   item: string;
+  asin: string;
   caseOf: string;
   casesPerPallet: string;
   unitOfMeasurement: UnitOfMeasurementValue | "";
@@ -49,6 +51,7 @@ interface FormValues {
 const EMPTY_FORM: FormValues = {
   sku: "",
   item: "",
+  asin: "",
   caseOf: "",
   casesPerPallet: "",
   unitOfMeasurement: "",
@@ -60,6 +63,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   FORBIDDEN: "You do not have permission to perform this action.",
   NOT_FOUND: "This product no longer exists.",
   DUPLICATE_SKU: "This SKU already exists. Please use a different SKU.",
+  DUPLICATE_ASIN: "This ASIN is already registered. Please use a different ASIN.",
   VALIDATION_ERROR: "Please review the highlighted fields.",
 };
 
@@ -76,6 +80,7 @@ function toFormValues(product: ProductListItem): FormValues {
   return {
     sku: product.sku,
     item: product.item,
+    asin: product.asin ?? "",
     caseOf: String(product.caseOf),
     casesPerPallet: String(product.casesPerPallet),
     unitOfMeasurement: product.unitOfMeasurement,
@@ -134,6 +139,11 @@ export function ProductCatalogTable({
 
     if (values.item.trim() === "") errors.item = ["Item is required."];
 
+    if (values.asin.trim() === "") errors.asin = ["ASIN is required."];
+    else if (!/^[A-Za-z0-9]+$/.test(values.asin.trim())) {
+      errors.asin = ["ASIN may only contain letters and numbers."];
+    }
+
     const caseOf = Number(values.caseOf);
     if (values.caseOf.trim() === "" || !Number.isInteger(caseOf) || caseOf <= 0) {
       errors.caseOf = ["Case Of must be a whole number greater than 0."];
@@ -171,6 +181,7 @@ export function ProductCatalogTable({
       const payload = {
         sku: values.sku.trim(),
         item: values.item.trim(),
+        asin: values.asin.trim(),
         caseOf: Number(values.caseOf),
         casesPerPallet: Number(values.casesPerPallet),
         unitOfMeasurement: values.unitOfMeasurement,
@@ -192,6 +203,8 @@ export function ProductCatalogTable({
       if (!response.ok) {
         if (data?.error === "DUPLICATE_SKU") {
           setFieldErrors({ sku: [ERROR_MESSAGES.DUPLICATE_SKU] });
+        } else if (data?.error === "DUPLICATE_ASIN") {
+          setFieldErrors({ asin: [ERROR_MESSAGES.DUPLICATE_ASIN] });
         } else {
           setFieldErrors(data?.issues ?? {});
         }
@@ -260,6 +273,7 @@ export function ProductCatalogTable({
               <TableRow>
                 <TableHead>SKU</TableHead>
                 <TableHead>Item</TableHead>
+                <TableHead>ASIN</TableHead>
                 <TableHead>Case Of</TableHead>
                 <TableHead>Cases Per Pallet</TableHead>
                 <TableHead>Unit of Measurement</TableHead>
@@ -270,8 +284,13 @@ export function ProductCatalogTable({
             <TableBody>
               {items.map((product) => (
                 <TableRow key={product.id}>
-                  <TableCell className="font-medium text-neutral-900">{product.sku}</TableCell>
+                  <TableCell className="font-medium text-neutral-900">
+                    <Link href={`/products/catalog/${product.id}`} className="text-brand-700 hover:underline">
+                      {product.sku}
+                    </Link>
+                  </TableCell>
                   <TableCell>{product.item}</TableCell>
+                  <TableCell>{product.asin ?? "—"}</TableCell>
                   <TableCell>{product.caseOf}</TableCell>
                   <TableCell>{product.casesPerPallet}</TableCell>
                   <TableCell>{product.unitOfMeasurement}</TableCell>
@@ -353,6 +372,15 @@ export function ProductCatalogTable({
             onChange={(event) => updateField("item", event.target.value)}
             error={fieldErrors.item?.[0]}
             placeholder="Product name"
+          />
+          <Input
+            label="ASIN"
+            required
+            value={values.asin}
+            onChange={(event) => updateField("asin", event.target.value)}
+            error={fieldErrors.asin?.[0]}
+            placeholder="B0ABC12345"
+            helperText="Amazon identifier. Letters and numbers only."
           />
           <div className="grid grid-cols-2 gap-4">
             <Input

@@ -263,6 +263,14 @@ model Product {
   id                String            @id @default(cuid())
   sku               String            @unique
   item              String
+  // ASIN (Fase ASIN): identificador de Amazon, independiente del SKU. Se
+  // define nullable a nivel de esquema únicamente porque el catálogo ya
+  // tenía productos existentes al agregar este campo y no se deben inventar
+  // valores para ellos; la aplicación (validation.ts) lo exige siempre en
+  // Create/Edit, así que en la práctica ningún producto tocado desde ahora
+  // en adelante queda sin ASIN. El índice único sigue protegiendo la
+  // unicidad incluso con nulls (Postgres permite múltiples NULL en UNIQUE).
+  asin              String?           @unique
   caseOf            Int               @map("case_of")
   casesPerPallet    Int               @map("cases_per_pallet")
   unitOfMeasurement UnitOfMeasurement @map("unit_of_measurement")

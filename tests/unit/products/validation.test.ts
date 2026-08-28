@@ -4,6 +4,7 @@ import { productInputSchema } from "@/modules/products/validation";
 const VALID_INPUT = {
   sku: "SKU001",
   item: "Product A",
+  asin: "B0ABC12345",
   caseOf: 12,
   casesPerPallet: 40,
   unitOfMeasurement: "LB" as const,
@@ -44,6 +45,50 @@ describe("productInputSchema", () => {
 
   it("acepta SKU alfanumérico mixto", () => {
     expect(productInputSchema.safeParse({ ...VALID_INPUT, sku: "SKU006Sticks" }).success).toBe(true);
+  });
+
+  it("aplica trim a ASIN", () => {
+    const result = productInputSchema.safeParse({ ...VALID_INPUT, asin: "  B0ABC12345  " });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.asin).toBe("B0ABC12345");
+  });
+
+  it("rechaza ASIN vacío", () => {
+    expect(productInputSchema.safeParse({ ...VALID_INPUT, asin: "" }).success).toBe(false);
+  });
+
+  it("rechaza ASIN compuesto solo de espacios", () => {
+    expect(productInputSchema.safeParse({ ...VALID_INPUT, asin: "   " }).success).toBe(false);
+  });
+
+  it("rechaza ASIN ausente del payload", () => {
+    const withoutAsin: Record<string, unknown> = { ...VALID_INPUT };
+    delete withoutAsin.asin;
+    expect(productInputSchema.safeParse(withoutAsin).success).toBe(false);
+  });
+
+  it("rechaza ASIN con caracteres no alfanuméricos (guiones, espacios internos, símbolos)", () => {
+    expect(productInputSchema.safeParse({ ...VALID_INPUT, asin: "B0-ABC-123" }).success).toBe(false);
+    expect(productInputSchema.safeParse({ ...VALID_INPUT, asin: "B0 ABC 123" }).success).toBe(false);
+    expect(productInputSchema.safeParse({ ...VALID_INPUT, asin: "B0ABC_123" }).success).toBe(false);
+  });
+
+  it("no trata el ASIN como número: acepta un valor puramente alfabético", () => {
+    const result = productInputSchema.safeParse({ ...VALID_INPUT, asin: "ABCDEFGHIJ" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(typeof result.data.asin).toBe("string");
+  });
+
+  it("acepta un ASIN puramente numérico como string, sin convertirlo", () => {
+    const result = productInputSchema.safeParse({ ...VALID_INPUT, asin: "0123456789" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.asin).toBe("0123456789");
+  });
+
+  it("no normaliza mayúsculas/minúsculas del ASIN", () => {
+    const result = productInputSchema.safeParse({ ...VALID_INPUT, asin: "b0abc12345" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.asin).toBe("b0abc12345");
   });
 
   it("rechaza Item vacío", () => {
