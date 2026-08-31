@@ -59,6 +59,16 @@ export function ProductsIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function MarketingIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...baseProps(props)}>
+      <path d="M3 11v2a2 2 0 0 0 2 2h1l3 4v-6" />
+      <path d="M9 9v6l7 4V5l-7 4H6a2 2 0 0 0-2 2z" />
+      <path d="M18 9a4 4 0 0 1 0 6" />
+    </svg>
+  );
+}
+
 export function SettingsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...baseProps(props)}>

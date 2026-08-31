@@ -15,6 +15,8 @@ export const PERMISSIONS = {
   VENDOR_MODES_MANAGE: "vendor.modes.manage",
   PRODUCTS_VIEW: "products.view",
   PRODUCTS_MANAGE: "products.manage",
+  MARKETING_COSMO_VIEW: "marketing.cosmo.view",
+  MARKETING_COSMO_MANAGE: "marketing.cosmo.manage",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

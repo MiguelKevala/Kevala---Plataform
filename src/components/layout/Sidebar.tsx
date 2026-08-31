@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import {
   DashboardIcon,
   InventoryIcon,
+  MarketingIcon,
   MenuIcon,
   ProductsIcon,
   SettingsIcon,
@@ -31,6 +32,7 @@ export interface SidebarProps {
   canManageCarriers: boolean;
   canManageModes: boolean;
   canViewProducts: boolean;
+  canViewMarketingCosmo: boolean;
 }
 
 export function Sidebar({
@@ -39,6 +41,7 @@ export function Sidebar({
   canManageCarriers,
   canManageModes,
   canViewProducts,
+  canViewMarketingCosmo,
 }: SidebarProps) {
   const settingsChildren: NavChild[] = [
     ...(canManageCarriers ? [{ label: "Carriers", href: "/settings/carriers" }] : []),
@@ -69,6 +72,16 @@ export function Sidebar({
           },
         ]
       : [{ label: "Products", icon: ProductsIcon }]),
+    ...(canViewMarketingCosmo
+      ? [
+          {
+            label: "Marketing",
+            href: "/marketing/cosmo",
+            icon: MarketingIcon,
+            children: [{ label: "Cosmo - Algorithm", href: "/marketing/cosmo" }],
+          },
+        ]
+      : [{ label: "Marketing", icon: MarketingIcon }]),
     ...(settingsChildren.length > 0
       ? [
           {

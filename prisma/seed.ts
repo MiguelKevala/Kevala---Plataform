@@ -21,6 +21,8 @@ const PERMISSIONS = [
   { key: "vendor.modes.manage", description: "Administrar el catálogo de modes (crear, editar, activar/desactivar)." },
   { key: "products.view", description: "Ver el catálogo maestro de productos (Products / Catalog)." },
   { key: "products.manage", description: "Crear, editar y eliminar productos del catálogo maestro." },
+  { key: "marketing.cosmo.view", description: "Consultar Marketing / Cosmo - Algorithm (periodos, métricas y changes)." },
+  { key: "marketing.cosmo.manage", description: "Importar el Excel de Cosmo y crear/editar periodos y changes." },
 ] as const;
 
 const ROLES: Array<{ name: string; description: string; permissions: readonly string[] }> = [
@@ -48,6 +50,8 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
       "vendor.modes.manage",
       "products.view",
       "products.manage",
+      "marketing.cosmo.view",
+      "marketing.cosmo.manage",
     ],
   },
   {
@@ -62,6 +66,7 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
       "vendor.orders.create",
       "vendor.orders.edit",
       "products.view",
+      "marketing.cosmo.view",
     ],
   },
   {
@@ -76,12 +81,13 @@ const ROLES: Array<{ name: string; description: string; permissions: readonly st
       "vendor.orders.create",
       "vendor.orders.edit",
       "products.view",
+      "marketing.cosmo.view",
     ],
   },
   {
     name: "Viewer",
     description: "Rol de solo lectura. Acceso de lectura a Vendor.",
-    permissions: ["vendor.view", "vendor.orders.view", "products.view"],
+    permissions: ["vendor.view", "vendor.orders.view", "products.view", "marketing.cosmo.view"],
   },
 ];
 

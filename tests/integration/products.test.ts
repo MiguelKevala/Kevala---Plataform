@@ -47,6 +47,8 @@ describe("Products module", () => {
       casesPerPallet: 40,
       unitOfMeasurement: "LB",
       unit: 25,
+      country: [],
+      link: null,
       ...overrides,
     };
   }
@@ -386,6 +388,129 @@ describe("Products module", () => {
       expect(log).toBeTruthy();
       expect(log?.oldValues).toEqual({ asin: "B0OLD123XX" });
       expect(log?.newValues).toEqual({ asin: "B0NEW456XX" });
+    });
+  });
+
+  describe("Country / Link", () => {
+    it("crea un producto sin country ni link (ambos opcionales)", async () => {
+      const result = await createProduct(baseInput(`${SKU_PREFIX}CL01`), ctx());
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        createdProductIds.push(result.product.id);
+        expect(result.product.country).toEqual([]);
+        expect(result.product.link).toBeNull();
+      }
+    });
+
+    it("crea un producto con múltiples países a la vez (no es un valor único)", async () => {
+      const result = await createProduct(
+        baseInput(`${SKU_PREFIX}CL02`, { country: ["USA", "Mexico", "Canada"] }),
+        ctx(),
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        createdProductIds.push(result.product.id);
+        expect(result.product.country.sort()).toEqual(["Canada", "Mexico", "USA"]);
+      }
+    });
+
+    it("crea un producto con link válido", async () => {
+      const result = await createProduct(
+        baseInput(`${SKU_PREFIX}CL03`, { link: "https://amazon.com/dp/B0ABC12345" }),
+        ctx(),
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        createdProductIds.push(result.product.id);
+        expect(result.product.link).toBe("https://amazon.com/dp/B0ABC12345");
+      }
+    });
+
+    it("rechaza un link con formato inválido", () => {
+      const result = productInputSchema.safeParse({
+        ...baseInput(`${SKU_PREFIX}CL04`),
+        link: "not-a-url",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("acepta link vacío/ausente como null (opcional, no bloquea el guardado)", () => {
+      const empty = productInputSchema.safeParse({ ...baseInput(`${SKU_PREFIX}CL05`), link: "" });
+      expect(empty.success).toBe(true);
+      if (empty.success) expect(empty.data.link).toBeNull();
+
+      const undefinedLink = productInputSchema.safeParse({
+        ...baseInput(`${SKU_PREFIX}CL06`),
+        link: undefined,
+      });
+      expect(undefinedLink.success).toBe(true);
+      if (undefinedLink.success) expect(undefinedLink.data.link).toBeNull();
+    });
+
+    it("rechaza un valor de country fuera del conjunto cerrado (USA/Mexico/Canada)", () => {
+      const result = productInputSchema.safeParse({
+        ...baseInput(`${SKU_PREFIX}CL07`),
+        country: ["Brazil"],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("edita country y link, y lo registra en AuditLog", async () => {
+      const created = await createProduct(baseInput(`${SKU_PREFIX}CL08`, { country: ["USA"] }), ctx());
+      expect(created.ok).toBe(true);
+      if (!created.ok) return;
+      createdProductIds.push(created.product.id);
+
+      const result = await updateProduct(
+        created.product.id,
+        baseInput(`${SKU_PREFIX}CL08`, {
+          country: ["USA", "Canada"],
+          link: "https://amazon.com/dp/B0NEWLINK1",
+        }),
+        ctx(),
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.product.country.sort()).toEqual(["Canada", "USA"]);
+        expect(result.product.link).toBe("https://amazon.com/dp/B0NEWLINK1");
+      }
+
+      const log = await prisma.auditLog.findFirst({
+        where: { entityType: "Product", entityId: created.product.id, action: "PRODUCT_UPDATED" },
+        orderBy: { createdAt: "desc" },
+      });
+      expect(log).toBeTruthy();
+      const oldValues = log?.oldValues as Record<string, unknown>;
+      const newValues = log?.newValues as Record<string, unknown>;
+      expect(oldValues.country).toEqual(["USA"]);
+      expect((newValues.country as string[]).slice().sort()).toEqual(["Canada", "USA"]);
+      expect(newValues.link).toBe("https://amazon.com/dp/B0NEWLINK1");
+    });
+
+    it("no genera AuditLog si el conjunto de países no cambia (aunque el orden difiera)", async () => {
+      const created = await createProduct(
+        baseInput(`${SKU_PREFIX}CL09`, { country: ["USA", "Canada"] }),
+        ctx(),
+      );
+      expect(created.ok).toBe(true);
+      if (!created.ok) return;
+      createdProductIds.push(created.product.id);
+
+      const beforeCount = await prisma.auditLog.count({
+        where: { entityType: "Product", entityId: created.product.id },
+      });
+
+      const result = await updateProduct(
+        created.product.id,
+        baseInput(`${SKU_PREFIX}CL09`, { country: ["Canada", "USA"] }),
+        ctx(),
+      );
+      expect(result.ok).toBe(true);
+
+      const afterCount = await prisma.auditLog.count({
+        where: { entityType: "Product", entityId: created.product.id },
+      });
+      expect(afterCount).toBe(beforeCount);
     });
   });
 

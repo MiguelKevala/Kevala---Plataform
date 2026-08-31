@@ -259,6 +259,18 @@ enum UnitOfMeasurement {
   @@map("unit_of_measurement")
 }
 
+// Mercados donde puede venderse un producto. Conjunto cerrado y fijo (igual
+// razonamiento que UnitOfMeasurement) — un producto puede pertenecer a
+// varios a la vez, por eso vive como Country[] en Product, no como un solo
+// valor.
+enum Country {
+  USA
+  Mexico
+  Canada
+
+  @@map("country")
+}
+
 model Product {
   id                String            @id @default(cuid())
   sku               String            @unique
@@ -275,11 +287,77 @@ model Product {
   casesPerPallet    Int               @map("cases_per_pallet")
   unitOfMeasurement UnitOfMeasurement @map("unit_of_measurement")
   unit              Float
+  // Fase 9 (Marketing/Cosmo - Algorithm): un producto puede venderse en
+  // varios mercados a la vez, por eso es un array (no un valor único).
+  // Nullable/optional a propósito — no todo producto del catálogo tiene
+  // presencia en Amazon. Es la única fuente de verdad: Cosmo lo LEE de aquí,
+  // nunca lo duplica ni lo modifica desde su propia pantalla.
+  country           Country[]         @default([])
+  // Igual que country: dato del producto (el link de Amazon), no de cada
+  // CosmoPeriod. Opcional porque no todo producto tiene un link de Amazon.
+  link              String?
   isActive          Boolean           @default(true) @map("is_active")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
 
+  cosmoPeriods CosmoPeriod[]
+
   @@map("products")
+}
+
+// ---------------------------------------------------------------------------
+// Marketing / Cosmo - Algorithm (Fase 9). Normaliza el Excel de seguimiento
+// manual (bloques por producto + columnas dinámicas por periodo) en una
+// estructura relacional: Product -> CosmoPeriod -> CosmoChange. A propósito
+// NO existe "Week Number": cada periodo se identifica por su rango de
+// fechas exacto (startDate/endDate), nunca por un número de semana. Product
+// nunca se duplica ni se modifica desde aquí (name/ASIN/Country/Link siguen
+// perteneciendo exclusivamente al catálogo).
+// ---------------------------------------------------------------------------
+
+model CosmoPeriod {
+  id             String   @id @default(cuid())
+  productId      String   @map("product_id")
+  startDate      DateTime @map("start_date")
+  endDate        DateTime @map("end_date")
+  unitsSold      Int      @map("units_sold")
+  unitsAvailable Int      @map("units_available")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  product Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  changes CosmoChange[]
+
+  // Evita importar dos veces exactamente el mismo periodo del mismo producto.
+  @@unique([productId, startDate, endDate])
+  @@index([productId])
+  @@map("cosmo_periods")
+}
+
+model CosmoChange {
+  id            String   @id @default(cuid())
+  cosmoPeriodId String   @map("cosmo_period_id")
+  changeDate    DateTime @map("change_date")
+  description   String
+  // Mercados a los que aplica este Change específico — puede ser un
+  // subconjunto de cualquier tamaño de los países configurados en el
+  // Product dueño (Catalog), nunca un valor fuera de ese conjunto (se
+  // valida en la capa de servicio, no aquí). Se guarda siempre ordenado en
+  // el orden fijo del enum (ver sortCountries en validation.ts) para que la
+  // restricción UNIQUE de abajo sea independiente del orden de selección.
+  country       Country[] @default([])
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  cosmoPeriod CosmoPeriod @relation(fields: [cosmoPeriodId], references: [id], onDelete: Cascade)
+
+  // NO es changeDate único por sí solo: un mismo periodo puede tener varios
+  // changes el mismo día, siempre que difiera la descripción o el conjunto
+  // de mercados. Reimportar exactamente el mismo (periodo, fecha,
+  // descripción, mercados) no debe duplicar.
+  @@unique([cosmoPeriodId, changeDate, description, country])
+  @@index([cosmoPeriodId])
+  @@map("cosmo_changes")
 }
 
 model Notification {

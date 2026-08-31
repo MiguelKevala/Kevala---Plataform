@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   Button,
+  Checkbox,
   Input,
   Modal,
   Select,
@@ -16,7 +17,12 @@ import {
   TableRow,
   Toast,
 } from "@/components/ui";
-import { UNIT_OF_MEASUREMENT_VALUES, type UnitOfMeasurementValue } from "@/modules/products/validation";
+import {
+  COUNTRY_VALUES,
+  UNIT_OF_MEASUREMENT_VALUES,
+  type CountryValue,
+  type UnitOfMeasurementValue,
+} from "@/modules/products/validation";
 
 export interface ProductListItem {
   id: string;
@@ -27,6 +33,8 @@ export interface ProductListItem {
   casesPerPallet: number;
   unitOfMeasurement: UnitOfMeasurementValue;
   unit: number;
+  country: CountryValue[];
+  link: string | null;
 }
 
 export interface ProductCatalogTableProps {
@@ -46,6 +54,8 @@ interface FormValues {
   casesPerPallet: string;
   unitOfMeasurement: UnitOfMeasurementValue | "";
   unit: string;
+  country: CountryValue[];
+  link: string;
 }
 
 const EMPTY_FORM: FormValues = {
@@ -56,6 +66,8 @@ const EMPTY_FORM: FormValues = {
   casesPerPallet: "",
   unitOfMeasurement: "",
   unit: "",
+  country: [],
+  link: "",
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -85,6 +97,8 @@ function toFormValues(product: ProductListItem): FormValues {
     casesPerPallet: String(product.casesPerPallet),
     unitOfMeasurement: product.unitOfMeasurement,
     unit: String(product.unit),
+    country: product.country,
+    link: product.link ?? "",
   };
 }
 
@@ -108,6 +122,15 @@ export function ProductCatalogTable({
 
   function updateField<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((previous) => ({ ...previous, [key]: value }));
+  }
+
+  function toggleCountry(country: CountryValue, checked: boolean) {
+    setValues((previous) => ({
+      ...previous,
+      country: checked
+        ? [...previous.country, country]
+        : previous.country.filter((value) => value !== country),
+    }));
   }
 
   function openCreateModal() {
@@ -161,6 +184,10 @@ export function ProductCatalogTable({
       errors.unit = ["Unit must be a number greater than 0."];
     }
 
+    if (values.link.trim() !== "" && !/^https?:\/\/.+/i.test(values.link.trim())) {
+      errors.link = ["Link must be a valid URL."];
+    }
+
     return Object.keys(errors).length > 0 ? errors : null;
   }
 
@@ -186,6 +213,8 @@ export function ProductCatalogTable({
         casesPerPallet: Number(values.casesPerPallet),
         unitOfMeasurement: values.unitOfMeasurement,
         unit: Number(values.unit),
+        country: values.country,
+        link: values.link.trim() === "" ? null : values.link.trim(),
       };
 
       const isEdit = modalState?.mode === "edit";
@@ -274,6 +303,7 @@ export function ProductCatalogTable({
                 <TableHead>SKU</TableHead>
                 <TableHead>Item</TableHead>
                 <TableHead>ASIN</TableHead>
+                <TableHead>Country</TableHead>
                 <TableHead>Case Of</TableHead>
                 <TableHead>Cases Per Pallet</TableHead>
                 <TableHead>Unit of Measurement</TableHead>
@@ -291,6 +321,7 @@ export function ProductCatalogTable({
                   </TableCell>
                   <TableCell>{product.item}</TableCell>
                   <TableCell>{product.asin ?? "—"}</TableCell>
+                  <TableCell>{product.country.length > 0 ? product.country.join(", ") : "—"}</TableCell>
                   <TableCell>{product.caseOf}</TableCell>
                   <TableCell>{product.casesPerPallet}</TableCell>
                   <TableCell>{product.unitOfMeasurement}</TableCell>
@@ -381,6 +412,28 @@ export function ProductCatalogTable({
             error={fieldErrors.asin?.[0]}
             placeholder="B0ABC12345"
             helperText="Amazon identifier. Letters and numbers only."
+          />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-neutral-800">Country</span>
+            <div className="flex flex-wrap gap-4">
+              {COUNTRY_VALUES.map((country) => (
+                <Checkbox
+                  key={country}
+                  label={country}
+                  checked={values.country.includes(country)}
+                  onChange={(event) => toggleCountry(country, event.target.checked)}
+                />
+              ))}
+            </div>
+            {fieldErrors.country?.[0] && <p className="text-sm text-red-600">{fieldErrors.country[0]}</p>}
+          </div>
+          <Input
+            label="Link"
+            value={values.link}
+            onChange={(event) => updateField("link", event.target.value)}
+            error={fieldErrors.link?.[0]}
+            placeholder="https://amazon.com/dp/B0ABC12345"
+            helperText="Amazon product link. Optional."
           />
           <div className="grid grid-cols-2 gap-4">
             <Input

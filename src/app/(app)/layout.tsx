@@ -20,6 +20,7 @@ export default async function AppGroupLayout({ children }: { children: ReactNode
       canManageCarriers={permissions.has(PERMISSIONS.VENDOR_CARRIERS_MANAGE)}
       canManageModes={permissions.has(PERMISSIONS.VENDOR_MODES_MANAGE)}
       canViewProducts={permissions.has(PERMISSIONS.PRODUCTS_VIEW)}
+      canViewMarketingCosmo={permissions.has(PERMISSIONS.MARKETING_COSMO_VIEW)}
     >
       {children}
     </AppShell>

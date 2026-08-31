@@ -39,6 +39,8 @@ export default async function ProductsCatalogPage({ searchParams }: ProductsCata
     casesPerPallet: product.casesPerPallet,
     unitOfMeasurement: product.unitOfMeasurement,
     unit: product.unit,
+    country: product.country,
+    link: product.link,
   }));
 
   return (

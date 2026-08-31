@@ -34,7 +34,7 @@ function uniqueConstraintViolationField(error: unknown): "sku" | "asin" | null {
   return null;
 }
 
-const PRODUCT_FIELD_KEYS = [
+const PRODUCT_SCALAR_FIELD_KEYS = [
   "sku",
   "item",
   "asin",
@@ -42,7 +42,18 @@ const PRODUCT_FIELD_KEYS = [
   "casesPerPallet",
   "unitOfMeasurement",
   "unit",
+  "link",
 ] as const satisfies readonly (keyof ProductInput)[];
+
+/** `country` es un array: se compara por contenido (orden-independiente),
+ * no por igualdad de referencia — de lo contrario cada edit generaría un
+ * diff de AuditLog aunque el conjunto de países no haya cambiado. */
+function sameCountrySet(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((value, index) => value === sortedB[index]);
+}
 
 export async function createProduct(
   input: ProductInput,
@@ -91,13 +102,17 @@ export async function updateProduct(
     return { ok: false, error: "NOT_FOUND" };
   }
 
-  const oldValues: Record<string, string | number | null> = {};
-  const newValues: Record<string, string | number | null> = {};
-  for (const key of PRODUCT_FIELD_KEYS) {
+  const oldValues: Record<string, string | number | null | string[]> = {};
+  const newValues: Record<string, string | number | null | string[]> = {};
+  for (const key of PRODUCT_SCALAR_FIELD_KEYS) {
     if (existing[key] !== input[key]) {
       oldValues[key] = existing[key];
       newValues[key] = input[key];
     }
+  }
+  if (!sameCountrySet(existing.country, input.country)) {
+    oldValues.country = existing.country;
+    newValues.country = input.country;
   }
 
   if (Object.keys(newValues).length === 0) {

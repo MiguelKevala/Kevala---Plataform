@@ -10,6 +10,7 @@ export interface AppShellProps {
   canManageCarriers: boolean;
   canManageModes: boolean;
   canViewProducts: boolean;
+  canViewMarketingCosmo: boolean;
 }
 
 export function AppShell({
@@ -18,6 +19,7 @@ export function AppShell({
   canManageCarriers,
   canManageModes,
   canViewProducts,
+  canViewMarketingCosmo,
 }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -29,6 +31,7 @@ export function AppShell({
         canManageCarriers={canManageCarriers}
         canManageModes={canManageModes}
         canViewProducts={canViewProducts}
+        canViewMarketingCosmo={canViewMarketingCosmo}
       />
       <div className="flex min-h-screen flex-1 flex-col">
         <Topbar userName={userName} />

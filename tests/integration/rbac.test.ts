@@ -48,7 +48,7 @@ describe("RBAC", () => {
   });
 
   describe("catálogo de permisos", () => {
-    it("tiene exactamente los 16 permisos aprobados, sin permissions.manage", async () => {
+    it("tiene exactamente los 18 permisos aprobados, sin permissions.manage", async () => {
       const permissions = await prisma.permission.findMany({ select: { key: true } });
       const keys = permissions.map((permission) => permission.key).sort();
 
@@ -70,6 +70,8 @@ describe("RBAC", () => {
           PERMISSIONS.VENDOR_MODES_MANAGE,
           PERMISSIONS.PRODUCTS_VIEW,
           PERMISSIONS.PRODUCTS_MANAGE,
+          PERMISSIONS.MARKETING_COSMO_VIEW,
+          PERMISSIONS.MARKETING_COSMO_MANAGE,
         ].sort(),
       );
       expect(keys).not.toContain("permissions.manage");
@@ -77,15 +79,15 @@ describe("RBAC", () => {
   });
 
   describe("getUserPermissions", () => {
-    it("Super Admin tiene los 16 permisos", async () => {
+    it("Super Admin tiene los 18 permisos", async () => {
       const permissions = await getUserPermissions(superAdminUser.id);
-      expect(permissions.size).toBe(16);
+      expect(permissions.size).toBe(18);
       for (const key of Object.values(PERMISSIONS)) {
         expect(permissions.has(key)).toBe(true);
       }
     });
 
-    it("Admin tiene acceso administrativo y opera Vendor por completo, incluyendo catálogos y Products", async () => {
+    it("Admin tiene acceso administrativo y opera Vendor por completo, incluyendo catálogos, Products y Marketing/Cosmo", async () => {
       const permissions = await getUserPermissions(adminUser.id);
       expect([...permissions].sort()).toEqual(
         [
@@ -104,12 +106,14 @@ describe("RBAC", () => {
           PERMISSIONS.VENDOR_MODES_MANAGE,
           PERMISSIONS.PRODUCTS_VIEW,
           PERMISSIONS.PRODUCTS_MANAGE,
+          PERMISSIONS.MARKETING_COSMO_VIEW,
+          PERMISSIONS.MARKETING_COSMO_MANAGE,
         ].sort(),
       );
       expect(permissions.has(PERMISSIONS.ROLES_MANAGE)).toBe(false);
     });
 
-    it("Manager opera Vendor por completo (view + confirm + reject + deliver + create + edit) y ve Products, sin administrar catálogos ni Products", async () => {
+    it("Manager opera Vendor por completo (view + confirm + reject + deliver + create + edit), ve Products y Marketing/Cosmo, sin administrar catálogos, Products ni Cosmo", async () => {
       const permissions = await getUserPermissions(managerUser.id);
       expect([...permissions].sort()).toEqual(
         [
@@ -121,14 +125,16 @@ describe("RBAC", () => {
           PERMISSIONS.VENDOR_ORDERS_CREATE,
           PERMISSIONS.VENDOR_ORDERS_EDIT,
           PERMISSIONS.PRODUCTS_VIEW,
+          PERMISSIONS.MARKETING_COSMO_VIEW,
         ].sort(),
       );
       expect(permissions.has(PERMISSIONS.VENDOR_CARRIERS_MANAGE)).toBe(false);
       expect(permissions.has(PERMISSIONS.VENDOR_MODES_MANAGE)).toBe(false);
       expect(permissions.has(PERMISSIONS.PRODUCTS_MANAGE)).toBe(false);
+      expect(permissions.has(PERMISSIONS.MARKETING_COSMO_MANAGE)).toBe(false);
     });
 
-    it("Operator opera Vendor por completo (view + confirm + reject + deliver + create + edit) y ve Products, sin administrar catálogos ni Products", async () => {
+    it("Operator opera Vendor por completo (view + confirm + reject + deliver + create + edit), ve Products y Marketing/Cosmo, sin administrar catálogos, Products ni Cosmo", async () => {
       const permissions = await getUserPermissions(operatorUser.id);
       expect([...permissions].sort()).toEqual(
         [
@@ -140,22 +146,30 @@ describe("RBAC", () => {
           PERMISSIONS.VENDOR_ORDERS_CREATE,
           PERMISSIONS.VENDOR_ORDERS_EDIT,
           PERMISSIONS.PRODUCTS_VIEW,
+          PERMISSIONS.MARKETING_COSMO_VIEW,
         ].sort(),
       );
       expect(permissions.has(PERMISSIONS.VENDOR_CARRIERS_MANAGE)).toBe(false);
       expect(permissions.has(PERMISSIONS.VENDOR_MODES_MANAGE)).toBe(false);
       expect(permissions.has(PERMISSIONS.PRODUCTS_MANAGE)).toBe(false);
+      expect(permissions.has(PERMISSIONS.MARKETING_COSMO_MANAGE)).toBe(false);
     });
 
-    it("Viewer solo tiene lectura: NO puede confirmar, rechazar ni entregar, y solo ve Products", async () => {
+    it("Viewer solo tiene lectura: NO puede confirmar, rechazar ni entregar, y solo ve Products y Marketing/Cosmo", async () => {
       const permissions = await getUserPermissions(viewerUser.id);
       expect([...permissions].sort()).toEqual(
-        [PERMISSIONS.VENDOR_VIEW, PERMISSIONS.VENDOR_ORDERS_VIEW, PERMISSIONS.PRODUCTS_VIEW].sort(),
+        [
+          PERMISSIONS.VENDOR_VIEW,
+          PERMISSIONS.VENDOR_ORDERS_VIEW,
+          PERMISSIONS.PRODUCTS_VIEW,
+          PERMISSIONS.MARKETING_COSMO_VIEW,
+        ].sort(),
       );
       expect(permissions.has(PERMISSIONS.VENDOR_ORDERS_CONFIRM)).toBe(false);
       expect(permissions.has(PERMISSIONS.VENDOR_ORDERS_REJECT)).toBe(false);
       expect(permissions.has(PERMISSIONS.VENDOR_ORDERS_DELIVER)).toBe(false);
       expect(permissions.has(PERMISSIONS.PRODUCTS_MANAGE)).toBe(false);
+      expect(permissions.has(PERMISSIONS.MARKETING_COSMO_MANAGE)).toBe(false);
     });
 
     it("un usuario sin roles no tiene permisos", async () => {
